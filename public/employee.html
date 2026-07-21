@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My workspace · Novanest HR</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1F5FA6">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Novanest HR">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">Novanest<span class="tag">HR</span></div>
+    <nav>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+</div>
+
+<div class="dash">
+  <div class="sidebar">
+    <div class="who"><strong id="whoName">—</strong><span>Employee</span></div>
+    <div class="sidebar-link active" data-view="profile">My profile</div>
+    <div class="sidebar-link" data-view="attendance">Attendance</div>
+    <div class="sidebar-link" data-view="leave">Leave requests</div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<!-- Leave request modal -->
+<div class="modal-backdrop" id="leaveModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Request leave</h3><button class="modal-close" onclick="closeModal('leaveModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="leaveForm">
+        <label for="leaveType">Type</label>
+        <select id="leaveType">
+          <option>Vacation</option><option>Sick</option><option>Personal</option><option>Bereavement</option><option>Other</option>
+        </select>
+        <label for="leaveStart">Start date</label>
+        <input id="leaveStart" type="date" required>
+        <label for="leaveEnd">End date</label>
+        <input id="leaveEnd" type="date" required>
+        <label for="leaveReason">Reason (optional)</label>
+        <textarea id="leaveReason"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit request</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/employee.js"></script>
+</body>
+</html>

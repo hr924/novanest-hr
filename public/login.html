@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in · Novanest HR</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1F5FA6">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Novanest HR">
+</head>
+<body>
+
+<div class="login-shell">
+  <div class="login-box">
+    <div class="brand">Novanest<span class="tag">HR</span></div>
+    <div class="filetab">Sign in</div>
+    <div class="panel" style="border-top-left-radius:0;">
+      <div class="panel-body">
+        <form id="loginForm">
+          <label for="email">Email</label>
+          <input id="email" type="email" required>
+          <label for="password">Password</label>
+          <input id="password" type="password" required>
+          <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Sign in</button>
+        </form>
+        <div class="hint-box">
+          ADMIN&nbsp;&nbsp;admin@company.com / admin123<br>
+          EMPLOYEE&nbsp;&nbsp;jordan@company.com / employee123
+        </div>
+      </div>
+    </div>
+    <p style="text-align:center; margin-top:16px;"><a href="index.html" style="font-size:13px; color: var(--ink-soft);">&larr; Back to careers page</a></p>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const { user } = await api('/auth/login', {
+      method: 'POST',
+      body: {
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value
+      }
+    });
+    window.location.href = user.role === 'admin' ? '/admin.html' : '/employee.html';
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+</script>
+</body>
+</html>

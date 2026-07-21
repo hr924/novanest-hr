@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Novanest HR</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1F5FA6">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Novanest HR">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">Novanest<span class="tag">HR</span></div>
+    <nav>
+      <a href="index.html">Careers page</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+</div>
+
+<div class="dash">
+  <div class="sidebar">
+    <div class="who"><strong id="whoName">—</strong><span id="whoRole">—</span></div>
+    <div class="sidebar-link active" data-view="overview">Overview</div>
+    <div class="sidebar-link" data-view="jobs">Job postings</div>
+    <div class="sidebar-link" data-view="applications">Applications</div>
+    <div class="sidebar-link" data-view="employees">Employees</div>
+    <div class="sidebar-link" data-view="leave">Leave requests</div>
+    <div class="sidebar-link" data-view="attendance">Attendance</div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<!-- Job form modal -->
+<div class="modal-backdrop" id="jobModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="jobModalTitle">New job posting</h3><button class="modal-close" onclick="closeModal('jobModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="jobForm">
+        <input type="hidden" id="jobId">
+        <label for="jobTitle">Title</label>
+        <input id="jobTitle" required>
+        <label for="jobDept">Department</label>
+        <input id="jobDept" required>
+        <label for="jobLocation">Location</label>
+        <input id="jobLocation" placeholder="Remote, New York NY, ...">
+        <label for="jobType">Employment type</label>
+        <select id="jobType">
+          <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
+        </select>
+        <label for="jobDesc">Description</label>
+        <textarea id="jobDesc"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save posting</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Employee form modal -->
+<div class="modal-backdrop" id="empModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="empModalTitle">Add employee</h3><button class="modal-close" onclick="closeModal('empModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="empForm">
+        <input type="hidden" id="empId">
+        <label for="empName">Full name</label>
+        <input id="empName" required>
+        <label for="empEmail">Email</label>
+        <input id="empEmail" type="email" required>
+        <label for="empDept">Department</label>
+        <input id="empDept" required>
+        <label for="empPosition">Position</label>
+        <input id="empPosition" required>
+        <label for="empPhone">Phone</label>
+        <input id="empPhone">
+        <label for="empStatus">Status</label>
+        <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <div id="loginFieldsWrap">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:600; color: var(--ink);">
+            <input type="checkbox" id="empCreateLogin" style="width:auto; margin:0;"> Create a login for this employee
+          </label>
+          <div id="loginPasswordWrap" style="display:none; margin-top:10px;">
+            <label for="empLoginPassword">Password (leave blank to auto-generate)</label>
+            <input id="empLoginPassword" placeholder="Auto-generated if left blank">
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:6px;">Save employee</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Credentials display modal -->
+<div class="modal-backdrop" id="credsModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Login created</h3><button class="modal-close" onclick="closeModal('credsModal')">&times;</button></div>
+    <div class="modal-body">
+      <p class="muted" style="margin-top:0; font-size:13.5px;">Share these with the employee — this password is only shown once.</p>
+      <table>
+        <tr><td class="muted" style="width:90px;">Email</td><td id="credsEmail" class="timestamp"></td></tr>
+        <tr><td class="muted">Password</td><td id="credsPassword" class="timestamp"></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Set login password modal -->
+<div class="modal-backdrop" id="setPasswordModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Create login <span id="setPasswordEmpName" class="muted" style="font-family: var(--font-body); font-size: 14px;"></span></h3><button class="modal-close" onclick="closeModal('setPasswordModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="setPasswordForm">
+        <input type="hidden" id="setPasswordEmpId">
+        <label for="setPasswordValue">Password</label>
+        <input id="setPasswordValue" placeholder="Leave blank to auto-generate one">
+        <div class="hint-box" style="margin-top:-6px;">The employee signs in with their email and this password at /login.html.</div>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:14px;">Create login</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

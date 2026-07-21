@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Careers · Novanest HR</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1F5FA6">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Novanest HR">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">Novanest<span class="tag">HR</span></div>
+    <nav>
+      <a href="index.html">Careers</a>
+      <a href="login.html">Sign in</a>
+    </nav>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Open roles — updated live</div>
+    <h1>Join the team behind the work you already respect.</h1>
+    <p>Browse current openings below. Applying takes about two minutes — no account required.</p>
+  </div>
+</div>
+
+<div class="wrap" style="padding-top: 32px; padding-bottom: 60px;">
+  <div class="filetab">Open positions</div>
+  <div id="jobList" class="panel" style="border-top-left-radius:0; padding: 18px;"></div>
+</div>
+
+<!-- Apply modal -->
+<div class="modal-backdrop" id="applyModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="applyJobTitle">Apply</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="applyForm">
+        <input type="hidden" id="applyJobId">
+        <label for="candidateName">Full name</label>
+        <input id="candidateName" required>
+        <label for="email">Email</label>
+        <input id="email" type="email" required>
+        <label for="phone">Phone</label>
+        <input id="phone">
+        <label for="coverLetter">Why you'd be a good fit</label>
+        <textarea id="coverLetter" placeholder="A few sentences about your background..."></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit application</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+let jobsCache = [];
+
+async function loadJobs() {
+  const { jobs } = await api('/jobs');
+  jobsCache = jobs;
+  const el = document.getElementById('jobList');
+  if (jobs.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="glyph">— · —</div>No open positions right now. Check back soon.</div>`;
+    return;
+  }
+  el.innerHTML = jobs.map(j => `
+    <div class="job-card">
+      <div>
+        <h3>${escapeHtml(j.title)}</h3>
+        <div class="job-meta">
+          <span>${escapeHtml(j.department)}</span>
+          <span>${escapeHtml(j.location || 'Location TBD')}</span>
+          <span>${escapeHtml(j.type || 'Full-time')}</span>
+        </div>
+        <div class="job-desc">${escapeHtml(j.description)}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openModal(${j.id})">Apply</button>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function openModal(jobId) {
+  const job = jobsCache.find(j => j.id === jobId);
+  document.getElementById('applyJobId').value = jobId;
+  document.getElementById('applyJobTitle').textContent = 'Apply — ' + job.title;
+  document.getElementById('applyModal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('applyModal').classList.remove('show');
+  document.getElementById('applyForm').reset();
+}
+
+document.getElementById('applyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/applications', {
+      method: 'POST',
+      body: {
+        jobId: Number(document.getElementById('applyJobId').value),
+        candidateName: document.getElementById('candidateName').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        coverLetter: document.getElementById('coverLetter').value
+      }
+    });
+    toast('Application submitted — thank you!');
+    closeModal();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+loadJobs();
+</script>
+</body>
+</html>
