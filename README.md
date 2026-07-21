@@ -36,8 +36,8 @@ Open:
 
 | Role      | Email                | Password      |
 |-----------|-----------------------|--------------|
-| HR Admin  | admin@company.com     | admin123     |
-| Employee  | jordan@company.com    | employee123  |
+| HR Admin  | hr@novanest.com        | Novanest#Admin2026 |
+| Employee  | jordan.lee@novanest.com | Novanest#Emp2026   |
 
 Change or remove these in `server/db.js` (see `defaultData()`) before using
 this in anything resembling production.

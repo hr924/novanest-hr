@@ -33,6 +33,17 @@
     <div class="sidebar-link" data-view="employees">Employees</div>
     <div class="sidebar-link" data-view="leave">Leave requests</div>
     <div class="sidebar-link" data-view="attendance">Attendance</div>
+    <div class="sidebar-link" data-view="payslips">Payslips</div>
+    <div class="sidebar-link" data-view="form16">Form 16</div>
+    <div class="sidebar-link" data-view="performance">Performance</div>
+    <div class="sidebar-link" data-view="tasks">Tasks</div>
+    <div class="sidebar-link" data-view="documents">Documents</div>
+    <div class="sidebar-link" data-view="assets">Assets</div>
+    <div class="sidebar-link" data-view="cases">Cases</div>
+    <div class="sidebar-link" data-view="surveys">Surveys</div>
+    <div class="sidebar-link" data-view="knowledgebase">Knowledge base</div>
+    <div class="sidebar-link" data-view="workflows">Workflows</div>
+    <div class="sidebar-link" data-view="reports">Reports</div>
   </div>
   <div class="main" id="main"></div>
 </div>
@@ -121,6 +132,208 @@
         <input id="setPasswordValue" placeholder="Leave blank to auto-generate one">
         <div class="hint-box" style="margin-top:-6px;">The employee signs in with their email and this password at /login.html.</div>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:14px;">Create login</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Payslip modal -->
+<div class="modal-backdrop" id="payslipModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Generate payslip</h3><button class="modal-close" onclick="closeModal('payslipModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="payslipForm">
+        <label for="payslipEmployee">Employee</label>
+        <select id="payslipEmployee" required></select>
+        <label for="payslipMonth">Month</label>
+        <input id="payslipMonth" type="month" required>
+        <label for="payslipBasic">Basic pay</label>
+        <input id="payslipBasic" type="number" min="0" step="0.01" required>
+        <label for="payslipAllowances">Allowances</label>
+        <input id="payslipAllowances" type="number" min="0" step="0.01" value="0">
+        <label for="payslipDeductions">Deductions</label>
+        <input id="payslipDeductions" type="number" min="0" step="0.01" value="0">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Generate payslip</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Form 16 modal -->
+<div class="modal-backdrop" id="form16Modal">
+  <div class="modal">
+    <div class="modal-head"><h3>Add Form 16</h3><button class="modal-close" onclick="closeModal('form16Modal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="form16Form">
+        <label for="form16Employee">Employee</label>
+        <select id="form16Employee" required></select>
+        <label for="form16Year">Financial year</label>
+        <input id="form16Year" placeholder="e.g. 2025-2026" required>
+        <label for="form16Gross">Gross salary</label>
+        <input id="form16Gross" type="number" min="0" step="0.01" required>
+        <label for="form16Tax">Tax deducted</label>
+        <input id="form16Tax" type="number" min="0" step="0.01" value="0">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save Form 16</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Performance review modal -->
+<div class="modal-backdrop" id="performanceModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Add performance review</h3><button class="modal-close" onclick="closeModal('performanceModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="performanceForm">
+        <label for="perfEmployee">Employee</label>
+        <select id="perfEmployee" required></select>
+        <label for="perfPeriod">Review period</label>
+        <input id="perfPeriod" placeholder="e.g. H1 2026" required>
+        <label for="perfRating">Rating</label>
+        <select id="perfRating">
+          <option>Exceeds expectations</option>
+          <option selected>Meets expectations</option>
+          <option>Needs improvement</option>
+          <option>Unsatisfactory</option>
+        </select>
+        <label for="perfGoals">Goals for next period</label>
+        <textarea id="perfGoals"></textarea>
+        <label for="perfFeedback">Feedback</label>
+        <textarea id="perfFeedback"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save review</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Task modal -->
+<div class="modal-backdrop" id="taskModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Assign task</h3><button class="modal-close" onclick="closeModal('taskModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="taskForm">
+        <label for="taskEmployee">Employee</label>
+        <select id="taskEmployee" required></select>
+        <label for="taskTitle">Title</label>
+        <input id="taskTitle" required>
+        <label for="taskDescription">Description</label>
+        <textarea id="taskDescription"></textarea>
+        <label for="taskDueDate">Due date</label>
+        <input id="taskDueDate" type="date">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Assign task</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Document modal -->
+<div class="modal-backdrop" id="documentModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Add document</h3><button class="modal-close" onclick="closeModal('documentModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="documentForm">
+        <label for="docTitle">Title</label>
+        <input id="docTitle" required>
+        <label for="docCategory">Category</label>
+        <input id="docCategory" placeholder="e.g. Policy, Handbook, Form">
+        <label for="docDescription">Description</label>
+        <textarea id="docDescription"></textarea>
+        <label for="docLink">Link (optional)</label>
+        <input id="docLink" placeholder="https://...">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Add document</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Asset modal -->
+<div class="modal-backdrop" id="assetModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Assign asset</h3><button class="modal-close" onclick="closeModal('assetModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="assetForm">
+        <label for="assetEmployee">Employee</label>
+        <select id="assetEmployee" required></select>
+        <label for="assetName">Asset name</label>
+        <input id="assetName" placeholder="e.g. MacBook Pro 14&quot;" required>
+        <label for="assetType">Type</label>
+        <input id="assetType" placeholder="e.g. Laptop, Phone, Monitor">
+        <label for="assetSerial">Serial number</label>
+        <input id="assetSerial">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Assign asset</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Survey modal -->
+<div class="modal-backdrop" id="surveyModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Create survey</h3><button class="modal-close" onclick="closeModal('surveyModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="surveyForm">
+        <label for="surveyQuestion">Question</label>
+        <input id="surveyQuestion" required>
+        <label for="surveyOptions">Options (one per line, at least 2)</label>
+        <textarea id="surveyOptions" placeholder="Yes&#10;No&#10;Not sure" required></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Create survey</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Knowledge base article modal -->
+<div class="modal-backdrop" id="kbModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Publish article</h3><button class="modal-close" onclick="closeModal('kbModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="kbForm">
+        <label for="kbTitle">Title</label>
+        <input id="kbTitle" required>
+        <label for="kbCategory">Category</label>
+        <input id="kbCategory" placeholder="e.g. Onboarding, IT, Benefits">
+        <label for="kbContent">Content</label>
+        <textarea id="kbContent" required style="min-height: 140px;"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Publish</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Workflow (onboarding checklist) modal -->
+<div class="modal-backdrop" id="workflowModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Assign checklist</h3><button class="modal-close" onclick="closeModal('workflowModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="workflowForm">
+        <label for="workflowEmployee">Employee</label>
+        <select id="workflowEmployee" required></select>
+        <label for="workflowName">Checklist name</label>
+        <input id="workflowName" placeholder="e.g. New Hire Onboarding" required>
+        <label for="workflowSteps">Steps (one per line)</label>
+        <textarea id="workflowSteps" placeholder="Sign offer letter&#10;Complete ID verification&#10;Set up laptop&#10;Meet the team" required></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Assign checklist</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Case response modal -->
+<div class="modal-backdrop" id="caseModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Respond to case</h3><button class="modal-close" onclick="closeModal('caseModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="caseForm">
+        <input type="hidden" id="caseId">
+        <label for="caseStatus">Status</label>
+        <select id="caseStatus">
+          <option value="open">Open</option>
+          <option value="in-progress">In progress</option>
+          <option value="resolved">Resolved</option>
+        </select>
+        <label for="caseResponse">Response</label>
+        <textarea id="caseResponse"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save response</button>
       </form>
     </div>
   </div>

@@ -29,6 +29,16 @@
     <div class="sidebar-link active" data-view="profile">My profile</div>
     <div class="sidebar-link" data-view="attendance">Attendance</div>
     <div class="sidebar-link" data-view="leave">Leave requests</div>
+    <div class="sidebar-link" data-view="payslips">Payslips</div>
+    <div class="sidebar-link" data-view="form16">Form 16</div>
+    <div class="sidebar-link" data-view="performance">Performance</div>
+    <div class="sidebar-link" data-view="tasks">Tasks</div>
+    <div class="sidebar-link" data-view="documents">Documents</div>
+    <div class="sidebar-link" data-view="assets">My assets</div>
+    <div class="sidebar-link" data-view="cases">Cases</div>
+    <div class="sidebar-link" data-view="surveys">Surveys</div>
+    <div class="sidebar-link" data-view="knowledgebase">Knowledge base</div>
+    <div class="sidebar-link" data-view="workflows">Checklists</div>
   </div>
   <div class="main" id="main"></div>
 </div>
@@ -50,6 +60,22 @@
         <label for="leaveReason">Reason (optional)</label>
         <textarea id="leaveReason"></textarea>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit request</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Raise a case modal -->
+<div class="modal-backdrop" id="caseModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Raise a case</h3><button class="modal-close" onclick="closeModal('caseModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="caseForm">
+        <label for="caseSubject">Subject</label>
+        <input id="caseSubject" required>
+        <label for="caseDescription">Description</label>
+        <textarea id="caseDescription"></textarea>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit case</button>
       </form>
     </div>
   </div>

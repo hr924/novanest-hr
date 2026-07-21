@@ -20,6 +20,16 @@ async function init() {
   document.getElementById('jobForm').addEventListener('submit', submitJob);
   document.getElementById('empForm').addEventListener('submit', submitEmployee);
   document.getElementById('setPasswordForm').addEventListener('submit', submitLoginPassword);
+  document.getElementById('payslipForm').addEventListener('submit', submitPayslip);
+  document.getElementById('form16Form').addEventListener('submit', submitForm16);
+  document.getElementById('performanceForm').addEventListener('submit', submitPerformance);
+  document.getElementById('taskForm').addEventListener('submit', submitTask);
+  document.getElementById('documentForm').addEventListener('submit', submitDocument);
+  document.getElementById('assetForm').addEventListener('submit', submitAsset);
+  document.getElementById('surveyForm').addEventListener('submit', submitSurvey);
+  document.getElementById('kbForm').addEventListener('submit', submitKb);
+  document.getElementById('workflowForm').addEventListener('submit', submitWorkflow);
+  document.getElementById('caseForm').addEventListener('submit', submitCaseResponse);
   document.getElementById('empCreateLogin').addEventListener('change', (e) => {
     document.getElementById('loginPasswordWrap').style.display = e.target.checked ? 'block' : 'none';
   });
@@ -30,7 +40,12 @@ async function init() {
 async function switchView(view) {
   VIEW = view;
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
-  const renderers = { overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees, leave: renderLeave, attendance: renderAttendance };
+  const renderers = {
+    overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees,
+    leave: renderLeave, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
+    tasks: renderTasks, documents: renderDocuments, assets: renderAssets, cases: renderCases,
+    surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports
+  };
   await renderers[view]();
 }
 
@@ -381,6 +396,561 @@ async function renderAttendance() {
         )}
       </div>
     </div>
+  `;
+}
+
+/* ---------------- Shared helper: populate employee dropdowns ---------------- */
+async function populateEmployeeSelect(selectId) {
+  if (!CACHE.employees || CACHE.employees.length === 0) {
+    const { employees } = await api('/employees');
+    CACHE.employees = employees;
+  }
+  const select = document.getElementById(selectId);
+  select.innerHTML = CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)} — ${escapeHtml(e.position)}</option>`).join('');
+}
+
+function fmtMoney(n) {
+  return '₹' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/* ---------------- Payslips ---------------- */
+async function renderPayslips() {
+  const { payslips } = await api('/payslips');
+  document.getElementById('main').innerHTML = `
+    <h1>Payslips</h1>
+    <div class="subtitle">Generate and review monthly payslips for employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All payslips</h2><button class="btn btn-primary btn-sm" onclick="openPayslipModal()">+ Generate payslip</button></div>
+      <div class="panel-body">
+        ${payslips.length === 0 ? emptyState('No payslips generated yet') : renderTable(
+          ['Employee', 'Month', 'Basic', 'Allowances', 'Deductions', 'Net pay', ''],
+          payslips.map(p => [
+            escapeHtml(p.employeeName), escapeHtml(p.month),
+            fmtMoney(p.basic), fmtMoney(p.allowances), fmtMoney(p.deductions),
+            `<strong>${fmtMoney(p.netPay)}</strong>`,
+            `<button class="btn btn-danger btn-sm" onclick="deletePayslip(${p.id})">Delete</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+async function openPayslipModal() {
+  document.getElementById('payslipForm').reset();
+  await populateEmployeeSelect('payslipEmployee');
+  document.getElementById('payslipModal').classList.add('show');
+}
+
+async function submitPayslip(e) {
+  e.preventDefault();
+  try {
+    await api('/payslips', {
+      method: 'POST',
+      body: {
+        employeeId: Number(document.getElementById('payslipEmployee').value),
+        month: document.getElementById('payslipMonth').value,
+        basic: document.getElementById('payslipBasic').value,
+        allowances: document.getElementById('payslipAllowances').value,
+        deductions: document.getElementById('payslipDeductions').value
+      }
+    });
+    toast('Payslip generated');
+    closeModal('payslipModal');
+    renderPayslips();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deletePayslip(id) {
+  if (!confirm('Delete this payslip?')) return;
+  try {
+    await api(`/payslips/${id}`, { method: 'DELETE' });
+    toast('Payslip deleted');
+    renderPayslips();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Form 16 ---------------- */
+async function renderForm16() {
+  const { formSixteens } = await api('/form16');
+  document.getElementById('main').innerHTML = `
+    <h1>Form 16</h1>
+    <div class="subtitle">Annual tax statements on file for each employee.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All records</h2><button class="btn btn-primary btn-sm" onclick="openForm16Modal()">+ Add Form 16</button></div>
+      <div class="panel-body">
+        ${formSixteens.length === 0 ? emptyState('No Form 16 records yet') : renderTable(
+          ['Employee', 'Financial year', 'Gross salary', 'Tax deducted', ''],
+          formSixteens.map(f => [
+            escapeHtml(f.employeeName), escapeHtml(f.financialYear),
+            fmtMoney(f.grossSalary), fmtMoney(f.taxDeducted),
+            `<button class="btn btn-danger btn-sm" onclick="deleteForm16(${f.id})">Delete</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+async function openForm16Modal() {
+  document.getElementById('form16Form').reset();
+  await populateEmployeeSelect('form16Employee');
+  document.getElementById('form16Modal').classList.add('show');
+}
+
+async function submitForm16(e) {
+  e.preventDefault();
+  try {
+    await api('/form16', {
+      method: 'POST',
+      body: {
+        employeeId: Number(document.getElementById('form16Employee').value),
+        financialYear: document.getElementById('form16Year').value,
+        grossSalary: document.getElementById('form16Gross').value,
+        taxDeducted: document.getElementById('form16Tax').value
+      }
+    });
+    toast('Form 16 saved');
+    closeModal('form16Modal');
+    renderForm16();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteForm16(id) {
+  if (!confirm('Delete this Form 16 record?')) return;
+  try {
+    await api(`/form16/${id}`, { method: 'DELETE' });
+    toast('Record deleted');
+    renderForm16();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Performance ---------------- */
+async function renderPerformance() {
+  const { performance } = await api('/performance');
+  document.getElementById('main').innerHTML = `
+    <h1>Performance</h1>
+    <div class="subtitle">Review history and feedback for each employee.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All reviews</h2><button class="btn btn-primary btn-sm" onclick="openPerformanceModal()">+ Add review</button></div>
+      <div class="panel-body">
+        ${performance.length === 0 ? emptyState('No performance reviews yet') : renderTable(
+          ['Employee', 'Period', 'Rating', 'Feedback', ''],
+          performance.map(p => [
+            escapeHtml(p.employeeName), escapeHtml(p.period), pill(p.rating.toLowerCase().replace(/\s+/g, '-')),
+            `<span class="muted">${escapeHtml(p.feedback || '—')}</span>`,
+            `<button class="btn btn-danger btn-sm" onclick="deletePerformance(${p.id})">Delete</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+async function openPerformanceModal() {
+  document.getElementById('performanceForm').reset();
+  await populateEmployeeSelect('perfEmployee');
+  document.getElementById('performanceModal').classList.add('show');
+}
+
+async function submitPerformance(e) {
+  e.preventDefault();
+  try {
+    await api('/performance', {
+      method: 'POST',
+      body: {
+        employeeId: Number(document.getElementById('perfEmployee').value),
+        period: document.getElementById('perfPeriod').value,
+        rating: document.getElementById('perfRating').value,
+        goals: document.getElementById('perfGoals').value,
+        feedback: document.getElementById('perfFeedback').value
+      }
+    });
+    toast('Review saved');
+    closeModal('performanceModal');
+    renderPerformance();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deletePerformance(id) {
+  if (!confirm('Delete this review?')) return;
+  try {
+    await api(`/performance/${id}`, { method: 'DELETE' });
+    toast('Review deleted');
+    renderPerformance();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Tasks ---------------- */
+async function renderTasks() {
+  const { tasks } = await api('/tasks');
+  document.getElementById('main').innerHTML = `
+    <h1>Tasks</h1>
+    <div class="subtitle">Assign and track to-dos for employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All tasks</h2><button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ Assign task</button></div>
+      <div class="panel-body">
+        ${tasks.length === 0 ? emptyState('No tasks yet') : renderTable(
+          ['Employee', 'Title', 'Due', 'Status', ''],
+          tasks.map(t => [
+            escapeHtml(t.employeeName), escapeHtml(t.title), t.dueDate ? fmtDate(t.dueDate) : '—', pill(t.status),
+            `<span class="section-actions">
+              <select style="margin:0; width:auto; padding:5px 8px; font-size:12px;" onchange="updateTaskStatus(${t.id}, this.value)">
+                ${['pending', 'in-progress', 'done'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+              <button class="btn btn-danger btn-sm" onclick="deleteTask(${t.id})">Delete</button>
+            </span>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+async function openTaskModal() {
+  document.getElementById('taskForm').reset();
+  await populateEmployeeSelect('taskEmployee');
+  document.getElementById('taskModal').classList.add('show');
+}
+async function submitTask(e) {
+  e.preventDefault();
+  try {
+    await api('/tasks', { method: 'POST', body: {
+      employeeId: Number(document.getElementById('taskEmployee').value),
+      title: document.getElementById('taskTitle').value,
+      description: document.getElementById('taskDescription').value,
+      dueDate: document.getElementById('taskDueDate').value
+    }});
+    toast('Task assigned');
+    closeModal('taskModal');
+    renderTasks();
+  } catch (err) { toast(err.message, true); }
+}
+async function updateTaskStatus(id, status) {
+  try { await api(`/tasks/${id}/status`, { method: 'PUT', body: { status } }); toast('Task updated'); }
+  catch (err) { toast(err.message, true); }
+}
+async function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  try { await api(`/tasks/${id}`, { method: 'DELETE' }); toast('Task deleted'); renderTasks(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Documents ---------------- */
+async function renderDocuments() {
+  const { documents } = await api('/documents');
+  document.getElementById('main').innerHTML = `
+    <h1>Documents</h1>
+    <div class="subtitle">Company document library visible to all employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All documents</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('documentForm').reset(); document.getElementById('documentModal').classList.add('show');">+ Add document</button></div>
+      <div class="panel-body">
+        ${documents.length === 0 ? emptyState('No documents yet') : renderTable(
+          ['Title', 'Category', 'Added', ''],
+          documents.map(d => [
+            `${escapeHtml(d.title)}${d.description ? '<br><span class="muted">' + escapeHtml(d.description) + '</span>' : ''}${d.link ? `<br><a href="${escapeHtml(d.link)}" target="_blank" style="font-size:12px;">${escapeHtml(d.link)}</a>` : ''}`,
+            escapeHtml(d.category), fmtDate(d.uploadedDate),
+            `<button class="btn btn-danger btn-sm" onclick="deleteDocument(${d.id})">Delete</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+async function submitDocument(e) {
+  e.preventDefault();
+  try {
+    await api('/documents', { method: 'POST', body: {
+      title: document.getElementById('docTitle').value,
+      category: document.getElementById('docCategory').value,
+      description: document.getElementById('docDescription').value,
+      link: document.getElementById('docLink').value
+    }});
+    toast('Document added');
+    closeModal('documentModal');
+    renderDocuments();
+  } catch (err) { toast(err.message, true); }
+}
+async function deleteDocument(id) {
+  if (!confirm('Delete this document?')) return;
+  try { await api(`/documents/${id}`, { method: 'DELETE' }); toast('Document deleted'); renderDocuments(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Assets ---------------- */
+async function renderAssets() {
+  const { assets } = await api('/assets');
+  document.getElementById('main').innerHTML = `
+    <h1>Assets</h1>
+    <div class="subtitle">Equipment issued to employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All assets</h2><button class="btn btn-primary btn-sm" onclick="openAssetModal()">+ Assign asset</button></div>
+      <div class="panel-body">
+        ${assets.length === 0 ? emptyState('No assets assigned yet') : renderTable(
+          ['Employee', 'Asset', 'Type', 'Serial #', 'Status', ''],
+          assets.map(a => [
+            escapeHtml(a.employeeName), escapeHtml(a.assetName), escapeHtml(a.assetType), escapeHtml(a.serialNumber || '—'), pill(a.status),
+            a.status === 'assigned' ? `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="returnAsset(${a.id})">Mark returned</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteAsset(${a.id})">Delete</button>
+            </span>` : `<button class="btn btn-danger btn-sm" onclick="deleteAsset(${a.id})">Delete</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+async function openAssetModal() {
+  document.getElementById('assetForm').reset();
+  await populateEmployeeSelect('assetEmployee');
+  document.getElementById('assetModal').classList.add('show');
+}
+async function submitAsset(e) {
+  e.preventDefault();
+  try {
+    await api('/assets', { method: 'POST', body: {
+      employeeId: Number(document.getElementById('assetEmployee').value),
+      assetName: document.getElementById('assetName').value,
+      assetType: document.getElementById('assetType').value,
+      serialNumber: document.getElementById('assetSerial').value
+    }});
+    toast('Asset assigned');
+    closeModal('assetModal');
+    renderAssets();
+  } catch (err) { toast(err.message, true); }
+}
+async function returnAsset(id) {
+  try { await api(`/assets/${id}/return`, { method: 'PUT' }); toast('Marked returned'); renderAssets(); }
+  catch (err) { toast(err.message, true); }
+}
+async function deleteAsset(id) {
+  if (!confirm('Delete this asset record?')) return;
+  try { await api(`/assets/${id}`, { method: 'DELETE' }); toast('Asset deleted'); renderAssets(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Cases ---------------- */
+async function renderCases() {
+  const { cases } = await api('/cases');
+  document.getElementById('main').innerHTML = `
+    <h1>Cases</h1>
+    <div class="subtitle">Support requests raised by employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All cases</h2></div>
+      <div class="panel-body">
+        ${cases.length === 0 ? emptyState('No cases raised yet') : renderTable(
+          ['Employee', 'Subject', 'Raised', 'Status', ''],
+          cases.map(c => [
+            escapeHtml(c.employeeName),
+            `${escapeHtml(c.subject)}${c.description ? '<br><span class="muted">' + escapeHtml(c.description) + '</span>' : ''}${c.response ? '<br><span class="muted"><strong>Response:</strong> ' + escapeHtml(c.response) + '</span>' : ''}`,
+            fmtDate(c.createdDate), pill(c.status),
+            `<button class="btn btn-ghost btn-sm" onclick="openCaseModal(${c.id})">Respond</button>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+  CACHE.cases = cases;
+}
+function openCaseModal(id) {
+  const c = CACHE.cases.find(x => x.id === id);
+  document.getElementById('caseId').value = id;
+  document.getElementById('caseStatus').value = c.status;
+  document.getElementById('caseResponse').value = c.response || '';
+  document.getElementById('caseModal').classList.add('show');
+}
+async function submitCaseResponse(e) {
+  e.preventDefault();
+  const id = document.getElementById('caseId').value;
+  try {
+    await api(`/cases/${id}`, { method: 'PUT', body: {
+      status: document.getElementById('caseStatus').value,
+      response: document.getElementById('caseResponse').value
+    }});
+    toast('Case updated');
+    closeModal('caseModal');
+    renderCases();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Surveys ---------------- */
+async function renderSurveys() {
+  const { surveys } = await api('/surveys');
+  document.getElementById('main').innerHTML = `
+    <h1>Surveys</h1>
+    <div class="subtitle">Quick polls sent to employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All surveys</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('surveyForm').reset(); document.getElementById('surveyModal').classList.add('show');">+ Create survey</button></div>
+      <div class="panel-body">
+        ${surveys.length === 0 ? emptyState('No surveys yet') : surveys.map(s => `
+          <div style="padding: 14px 0; border-bottom: 1px solid var(--line);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>${escapeHtml(s.question)}</strong>
+              <button class="btn btn-danger btn-sm" onclick="deleteSurvey(${s.id})">Delete</button>
+            </div>
+            <div class="muted" style="font-size:12.5px; margin: 6px 0;">${s.responseCount} response${s.responseCount === 1 ? '' : 's'}</div>
+            ${s.options.map(o => `<div style="font-size:13px; margin-bottom:3px;">${escapeHtml(o)} — <span class="timestamp">${s.tally[o] || 0}</span></div>`).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+async function submitSurvey(e) {
+  e.preventDefault();
+  const options = document.getElementById('surveyOptions').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    await api('/surveys', { method: 'POST', body: { question: document.getElementById('surveyQuestion').value, options } });
+    toast('Survey created');
+    closeModal('surveyModal');
+    renderSurveys();
+  } catch (err) { toast(err.message, true); }
+}
+async function deleteSurvey(id) {
+  if (!confirm('Delete this survey?')) return;
+  try { await api(`/surveys/${id}`, { method: 'DELETE' }); toast('Survey deleted'); renderSurveys(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Knowledge base ---------------- */
+async function renderKnowledgeBase() {
+  const { articles } = await api('/knowledgebase');
+  document.getElementById('main').innerHTML = `
+    <h1>Knowledge base</h1>
+    <div class="subtitle">Articles and FAQs for employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All articles</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('kbForm').reset(); document.getElementById('kbModal').classList.add('show');">+ Publish article</button></div>
+      <div class="panel-body">
+        ${articles.length === 0 ? emptyState('No articles yet') : articles.map(a => `
+          <div style="padding: 14px 0; border-bottom: 1px solid var(--line);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <strong>${escapeHtml(a.title)}</strong>
+              <button class="btn btn-danger btn-sm" onclick="deleteKb(${a.id})">Delete</button>
+            </div>
+            <div class="muted" style="font-size:12px; margin-bottom:6px;">${escapeHtml(a.category)} — ${fmtDate(a.publishedDate)}</div>
+            <div style="font-size:13.5px; white-space: pre-wrap;">${escapeHtml(a.content)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+async function submitKb(e) {
+  e.preventDefault();
+  try {
+    await api('/knowledgebase', { method: 'POST', body: {
+      title: document.getElementById('kbTitle').value,
+      category: document.getElementById('kbCategory').value,
+      content: document.getElementById('kbContent').value
+    }});
+    toast('Article published');
+    closeModal('kbModal');
+    renderKnowledgeBase();
+  } catch (err) { toast(err.message, true); }
+}
+async function deleteKb(id) {
+  if (!confirm('Delete this article?')) return;
+  try { await api(`/knowledgebase/${id}`, { method: 'DELETE' }); toast('Article deleted'); renderKnowledgeBase(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Workflows ---------------- */
+async function renderWorkflows() {
+  const { workflows } = await api('/workflows');
+  document.getElementById('main').innerHTML = `
+    <h1>Workflows</h1>
+    <div class="subtitle">Onboarding and process checklists assigned to employees.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All checklists</h2><button class="btn btn-primary btn-sm" onclick="openWorkflowModal()">+ Assign checklist</button></div>
+      <div class="panel-body">
+        ${workflows.length === 0 ? emptyState('No checklists yet') : workflows.map(w => {
+          const doneCount = w.steps.filter(s => s.done).length;
+          return `
+          <div style="padding: 14px 0; border-bottom: 1px solid var(--line);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <strong>${escapeHtml(w.name)}</strong> <span class="muted" style="font-size:12.5px;">— ${escapeHtml(w.employeeName)}</span>
+              <button class="btn btn-danger btn-sm" onclick="deleteWorkflow(${w.id})">Delete</button>
+            </div>
+            <div class="muted" style="font-size:12px; margin-bottom:6px;">${doneCount}/${w.steps.length} complete</div>
+            ${w.steps.map(s => `
+              <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13.5px; margin-bottom:4px;">
+                <input type="checkbox" style="width:auto; margin:0;" ${s.done ? 'checked' : ''} onchange="toggleWorkflowStep(${w.id}, ${s.id}, this.checked)">
+                <span style="${s.done ? 'text-decoration: line-through; color: var(--ink-soft);' : ''}">${escapeHtml(s.label)}</span>
+              </label>
+            `).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+async function openWorkflowModal() {
+  document.getElementById('workflowForm').reset();
+  await populateEmployeeSelect('workflowEmployee');
+  document.getElementById('workflowModal').classList.add('show');
+}
+async function submitWorkflow(e) {
+  e.preventDefault();
+  const steps = document.getElementById('workflowSteps').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    await api('/workflows', { method: 'POST', body: {
+      employeeId: Number(document.getElementById('workflowEmployee').value),
+      name: document.getElementById('workflowName').value,
+      steps
+    }});
+    toast('Checklist assigned');
+    closeModal('workflowModal');
+    renderWorkflows();
+  } catch (err) { toast(err.message, true); }
+}
+async function toggleWorkflowStep(workflowId, stepId, done) {
+  try { await api(`/workflows/${workflowId}/steps/${stepId}`, { method: 'PUT', body: { done } }); }
+  catch (err) { toast(err.message, true); renderWorkflows(); }
+}
+async function deleteWorkflow(id) {
+  if (!confirm('Delete this checklist?')) return;
+  try { await api(`/workflows/${id}`, { method: 'DELETE' }); toast('Checklist deleted'); renderWorkflows(); }
+  catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Reports ---------------- */
+async function renderReports() {
+  const [{ employees }, { jobs }, { applications }, { leave }, { cases }, { assets }] = await Promise.all([
+    api('/employees'), api('/jobs?all=1'), api('/applications'), api('/leave'), api('/cases'), api('/assets')
+  ]);
+  const byDept = {};
+  employees.forEach(e => { byDept[e.department] = (byDept[e.department] || 0) + 1; });
+  const openCases = cases.filter(c => c.status !== 'resolved').length;
+  const pendingLeave = leave.filter(l => l.status === 'pending').length;
+  const assignedAssets = assets.filter(a => a.status === 'assigned').length;
+
+  document.getElementById('main').innerHTML = `
+    <h1>Reports</h1>
+    <div class="subtitle">A quick snapshot across the organization.</div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="num">${employees.length}</div><div class="label">Total employees</div></div>
+      <div class="stat-card"><div class="num">${jobs.filter(j => j.status === 'open').length}</div><div class="label">Open positions</div></div>
+      <div class="stat-card"><div class="num">${pendingLeave}</div><div class="label">Pending leave</div></div>
+      <div class="stat-card"><div class="num">${openCases}</div><div class="label">Open cases</div></div>
+    </div>
+    <div class="filetab">Headcount by department</div>
+    <div class="panel" style="border-top-left-radius:0; margin-bottom: 20px;">
+      <div class="panel-body">
+        ${Object.keys(byDept).length === 0 ? emptyState('No employees yet') : renderTable(
+          ['Department', 'Headcount'],
+          Object.entries(byDept).map(([dept, count]) => [escapeHtml(dept), count])
+        )}
+      </div>
+    </div>
+    <div class="filetab">Applications by status</div>
+    <div class="panel" style="border-top-left-radius:0;">
+      <div class="panel-body">
+        ${applications.length === 0 ? emptyState('No applications yet') : renderTable(
+          ['Status', 'Count'],
+          ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'].map(s => [pill(s), applications.filter(a => a.status === s).length])
+        )}
+      </div>
+    </div>
+    <div class="mt-24 muted" style="font-size:12.5px;">${assignedAssets} asset${assignedAssets === 1 ? '' : 's'} currently assigned across the team.</div>
   `;
 }
 

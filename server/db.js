@@ -5,14 +5,35 @@ const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'db.json');
 
+function randomPassword() {
+  return Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-6);
+}
+
 function defaultData() {
-  const adminPasswordHash = bcrypt.hashSync('admin123', 8);
-  const empPasswordHash = bcrypt.hashSync('employee123', 8);
+  const adminEmail = process.env.ADMIN_EMAIL || 'hr@novanest.com';
+  let adminPasswordPlain = process.env.ADMIN_PASSWORD;
+  if (!adminPasswordPlain) {
+    adminPasswordPlain = randomPassword();
+    console.log('----------------------------------------------------------------');
+    console.log('No ADMIN_EMAIL / ADMIN_PASSWORD environment variables were set.');
+    console.log('A one-time admin account was generated:');
+    console.log('  Email:    ' + adminEmail);
+    console.log('  Password: ' + adminPasswordPlain);
+    console.log('Set ADMIN_EMAIL and ADMIN_PASSWORD in your environment to control');
+    console.log('these permanently instead of relying on this generated one.');
+    console.log('----------------------------------------------------------------');
+  }
+  const adminPasswordHash = bcrypt.hashSync(adminPasswordPlain, 8);
+  const empPasswordHash = bcrypt.hashSync('Novanest#Emp2026', 8);
   return {
-    nextId: { users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1 },
+    nextId: {
+      users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1,
+      payslips: 1, formSixteens: 1, performance: 1,
+      tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1
+    },
     users: [
-      { id: 1, name: 'Alex Morgan', email: 'admin@company.com', password: adminPasswordHash, role: 'admin' },
-      { id: 2, name: 'Jordan Lee', email: 'jordan@company.com', password: empPasswordHash, role: 'employee', employeeId: 1 }
+      { id: 1, name: 'Alex Morgan', email: adminEmail, password: adminPasswordHash, role: 'admin' },
+      { id: 2, name: 'Jordan Lee', email: 'jordan.lee@novanest.com', password: empPasswordHash, role: 'employee', employeeId: 1 }
     ],
     jobs: [
       {
@@ -41,7 +62,7 @@ function defaultData() {
       {
         id: 1,
         name: 'Jordan Lee',
-        email: 'jordan@company.com',
+        email: 'jordan.lee@novanest.com',
         department: 'Engineering',
         position: 'Frontend Engineer',
         joinDate: '2024-03-01',
@@ -50,7 +71,18 @@ function defaultData() {
       }
     ],
     leave: [],
-    attendance: []
+    attendance: [],
+    payslips: [],
+    formSixteens: [],
+    performance: [],
+    tasks: [],
+    documents: [],
+    assets: [],
+    cases: [],
+    surveys: [],
+    surveyResponses: [],
+    kbArticles: [],
+    workflows: []
   };
 }
 
@@ -64,9 +96,36 @@ function ensureDB() {
   }
 }
 
+function migrate(data) {
+  let changed = false;
+  const ensureArray = (key) => {
+    if (!Array.isArray(data[key])) { data[key] = []; changed = true; }
+  };
+  ensureArray('payslips');
+  ensureArray('formSixteens');
+  ensureArray('performance');
+  ensureArray('tasks');
+  ensureArray('documents');
+  ensureArray('assets');
+  ensureArray('cases');
+  ensureArray('surveys');
+  ensureArray('surveyResponses');
+  ensureArray('kbArticles');
+  ensureArray('workflows');
+  if (!data.nextId) data.nextId = {};
+  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows'].forEach((key) => {
+    if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
+  });
+  return changed;
+}
+
 function readDB() {
   ensureDB();
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  if (migrate(data)) {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  }
+  return data;
 }
 
 function writeDB(data) {

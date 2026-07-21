@@ -9,6 +9,16 @@ const applicationRoutes = require('./routes/applications');
 const employeeRoutes = require('./routes/employees');
 const leaveRoutes = require('./routes/leave');
 const attendanceRoutes = require('./routes/attendance');
+const payslipRoutes = require('./routes/payslips');
+const formSixteenRoutes = require('./routes/formSixteen');
+const performanceRoutes = require('./routes/performance');
+const taskRoutes = require('./routes/tasks');
+const documentRoutes = require('./routes/documents');
+const assetRoutes = require('./routes/assets');
+const caseRoutes = require('./routes/cases');
+const surveyRoutes = require('./routes/surveys');
+const kbRoutes = require('./routes/knowledgebase');
+const workflowRoutes = require('./routes/workflows');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +39,16 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/payslips', payslipRoutes);
+app.use('/api/form16', formSixteenRoutes);
+app.use('/api/performance', performanceRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/assets', assetRoutes);
+app.use('/api/cases', caseRoutes);
+app.use('/api/surveys', surveyRoutes);
+app.use('/api/knowledgebase', kbRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -37,6 +57,4 @@ app.listen(PORT, () => {
   console.log(`Novanest HR running at http://localhost:${PORT}`);
   console.log(`  Careers page:  http://localhost:${PORT}/index.html`);
   console.log(`  Login page:    http://localhost:${PORT}/login.html`);
-  console.log(`  Admin/HR:      admin@company.com / admin123`);
-  console.log(`  Employee demo: jordan@company.com / employee123`);
 });
