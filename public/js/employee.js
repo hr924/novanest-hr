@@ -52,7 +52,8 @@ async function renderProfile() {
       <div class="subtitle">Your employment record on file.</div>
       <div class="panel"><div class="panel-body">
         <table>
-          <tr><td class="muted" style="width:160px;">Full name</td><td>${escapeHtml(employee.name)}</td></tr>
+          <tr><td class="muted" style="width:160px;">Employee ID</td><td class="timestamp">${escapeHtml(employee.employeeCode || '—')}</td></tr>
+          <tr><td class="muted">Full name</td><td>${escapeHtml(employee.name)}</td></tr>
           <tr><td class="muted">Email</td><td>${escapeHtml(employee.email)}</td></tr>
           <tr><td class="muted">Phone</td><td>${escapeHtml(employee.phone || '—')}</td></tr>
           <tr><td class="muted">Department</td><td>${escapeHtml(employee.department)}</td></tr>

@@ -21,6 +21,7 @@ async function init() {
   document.getElementById('empForm').addEventListener('submit', submitEmployee);
   document.getElementById('setPasswordForm').addEventListener('submit', submitLoginPassword);
   document.getElementById('payslipForm').addEventListener('submit', submitPayslip);
+  document.getElementById('bulkPayslipForm').addEventListener('submit', submitBulkPayslip);
   document.getElementById('form16Form').addEventListener('submit', submitForm16);
   document.getElementById('performanceForm').addEventListener('submit', submitPerformance);
   document.getElementById('taskForm').addEventListener('submit', submitTask);
@@ -237,8 +238,9 @@ async function renderEmployees() {
       <div class="panel-header"><h2>Roster</h2><button class="btn btn-primary btn-sm" onclick="openEmpModal()">+ Add employee</button></div>
       <div class="panel-body">
         ${employees.length === 0 ? emptyState('No employees yet') : renderTable(
-          ['Name', 'Department', 'Position', 'Joined', 'Status', 'Login', ''],
+          ['Employee ID', 'Name', 'Department', 'Position', 'Joined', 'Status', 'Login', ''],
           employees.map(e => [
+            `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
             `${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span>`,
             escapeHtml(e.department), escapeHtml(e.position), fmtDate(e.joinDate), pill(e.status),
             e.hasLogin ? pill('active') : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
@@ -260,6 +262,7 @@ function openEmpModal(id) {
   document.getElementById('empModalTitle').textContent = 'Add employee';
   document.getElementById('loginPasswordWrap').style.display = 'none';
   document.getElementById('loginFieldsWrap').style.display = 'block';
+  document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
   if (id) {
     const emp = CACHE.employees.find(e => e.id === id);
     document.getElementById('empId').value = emp.id;
@@ -268,8 +271,12 @@ function openEmpModal(id) {
     document.getElementById('empDept').value = emp.department;
     document.getElementById('empPosition').value = emp.position;
     document.getElementById('empPhone').value = emp.phone || '';
+    document.getElementById('empJoinDate').value = emp.joinDate || '';
     document.getElementById('empStatus').value = emp.status;
-    document.getElementById('empModalTitle').textContent = 'Edit employee';
+    document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
+    document.getElementById('empAllowances').value = emp.allowances || 0;
+    document.getElementById('empDeductions').value = emp.deductions || 0;
+    document.getElementById('empModalTitle').textContent = 'Edit employee — ' + (emp.employeeCode || '');
     // Login accounts for existing employees are managed from the roster table, not this form.
     document.getElementById('loginFieldsWrap').style.display = 'none';
   }
@@ -285,7 +292,11 @@ async function submitEmployee(e) {
     department: document.getElementById('empDept').value,
     position: document.getElementById('empPosition').value,
     phone: document.getElementById('empPhone').value,
-    status: document.getElementById('empStatus').value
+    joinDate: document.getElementById('empJoinDate').value,
+    status: document.getElementById('empStatus').value,
+    basicSalary: document.getElementById('empBasicSalary').value,
+    allowances: document.getElementById('empAllowances').value,
+    deductions: document.getElementById('empDeductions').value
   };
   if (!id) {
     payload.createLogin = document.getElementById('empCreateLogin').checked;
@@ -297,10 +308,10 @@ async function submitEmployee(e) {
       toast('Employee saved');
       closeModal('empModal');
     } else {
-      const { credentials } = await api('/employees', { method: 'POST', body: payload });
+      const { credentials, employee } = await api('/employees', { method: 'POST', body: payload });
       toast('Employee saved');
       closeModal('empModal');
-      if (credentials) showCredentials(credentials);
+      if (credentials) showCredentials(credentials, employee);
     }
     renderEmployees();
   } catch (err) { toast(err.message, true); }
@@ -321,12 +332,14 @@ async function submitLoginPassword(e) {
   try {
     const { credentials } = await api(`/employees/${id}/create-login`, { method: 'POST', body: { password } });
     closeModal('setPasswordModal');
-    showCredentials(credentials);
+    const emp = CACHE.employees.find(e => e.id === Number(id));
+    showCredentials(credentials, emp);
     renderEmployees();
   } catch (err) { toast(err.message, true); }
 }
 
-function showCredentials(credentials) {
+function showCredentials(credentials, employee) {
+  document.getElementById('credsEmployeeId').textContent = (employee && employee.employeeCode) || '—';
   document.getElementById('credsEmail').textContent = credentials.email;
   document.getElementById('credsPassword').textContent = credentials.password;
   document.getElementById('credsModal').classList.add('show');
@@ -420,7 +433,13 @@ async function renderPayslips() {
     <h1>Payslips</h1>
     <div class="subtitle">Generate and review monthly payslips for employees.</div>
     <div class="panel">
-      <div class="panel-header"><h2>All payslips</h2><button class="btn btn-primary btn-sm" onclick="openPayslipModal()">+ Generate payslip</button></div>
+      <div class="panel-header">
+        <h2>All payslips</h2>
+        <span class="section-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openBulkPayslipModal()">Auto-generate for everyone</button>
+          <button class="btn btn-primary btn-sm" onclick="openPayslipModal()">+ Generate payslip</button>
+        </span>
+      </div>
       <div class="panel-body">
         ${payslips.length === 0 ? emptyState('No payslips generated yet') : renderTable(
           ['Employee', 'Month', 'Basic', 'Allowances', 'Deductions', 'Net pay', ''],
@@ -439,7 +458,22 @@ async function renderPayslips() {
 async function openPayslipModal() {
   document.getElementById('payslipForm').reset();
   await populateEmployeeSelect('payslipEmployee');
+  autoFillPayslipAmounts();
   document.getElementById('payslipModal').classList.add('show');
+}
+
+function autoFillPayslipAmounts() {
+  const empId = Number(document.getElementById('payslipEmployee').value);
+  const emp = CACHE.employees.find(e => e.id === empId);
+  if (!emp) return;
+  document.getElementById('payslipBasic').value = emp.basicSalary || 0;
+  document.getElementById('payslipAllowances').value = emp.allowances || 0;
+  document.getElementById('payslipDeductions').value = emp.deductions || 0;
+}
+
+function openBulkPayslipModal() {
+  document.getElementById('bulkPayslipForm').reset();
+  document.getElementById('bulkPayslipModal').classList.add('show');
 }
 
 async function submitPayslip(e) {
@@ -466,6 +500,17 @@ async function deletePayslip(id) {
   try {
     await api(`/payslips/${id}`, { method: 'DELETE' });
     toast('Payslip deleted');
+    renderPayslips();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function submitBulkPayslip(e) {
+  e.preventDefault();
+  const month = document.getElementById('bulkPayslipMonth').value;
+  try {
+    const { generatedCount, skippedCount } = await api('/payslips/generate-all', { method: 'POST', body: { month } });
+    closeModal('bulkPayslipModal');
+    toast(`Generated ${generatedCount} payslip${generatedCount === 1 ? '' : 's'}${skippedCount ? `, skipped ${skippedCount} already generated` : ''}`);
     renderPayslips();
   } catch (err) { toast(err.message, true); }
 }

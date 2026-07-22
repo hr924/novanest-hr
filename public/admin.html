@@ -90,8 +90,17 @@
         <input id="empPosition" required>
         <label for="empPhone">Phone</label>
         <input id="empPhone">
+        <label for="empJoinDate">Joining date</label>
+        <input id="empJoinDate" type="date" required>
         <label for="empStatus">Status</label>
         <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <label for="empBasicSalary">Basic salary (monthly)</label>
+        <input id="empBasicSalary" type="number" min="0" step="0.01" value="0">
+        <label for="empAllowances">Allowances (monthly)</label>
+        <input id="empAllowances" type="number" min="0" step="0.01" value="0">
+        <label for="empDeductions">Standard deductions (monthly)</label>
+        <input id="empDeductions" type="number" min="0" step="0.01" value="0">
+        <div class="hint-box" style="margin-top:-6px;">These salary figures are used to auto-generate payslips each month.</div>
         <div id="loginFieldsWrap">
           <label style="display:flex; align-items:center; gap:8px; font-weight:600; color: var(--ink);">
             <input type="checkbox" id="empCreateLogin" style="width:auto; margin:0;"> Create a login for this employee
@@ -112,8 +121,9 @@
   <div class="modal">
     <div class="modal-head"><h3>Login created</h3><button class="modal-close" onclick="closeModal('credsModal')">&times;</button></div>
     <div class="modal-body">
-      <p class="muted" style="margin-top:0; font-size:13.5px;">Share these with the employee — this password is only shown once.</p>
+      <p class="muted" style="margin-top:0; font-size:13.5px;">Share these with the employee — they can sign in with either their email or Employee ID. This password is only shown once.</p>
       <table>
+        <tr><td class="muted" style="width:90px;">Employee ID</td><td id="credsEmployeeId" class="timestamp"></td></tr>
         <tr><td class="muted" style="width:90px;">Email</td><td id="credsEmail" class="timestamp"></td></tr>
         <tr><td class="muted">Password</td><td id="credsPassword" class="timestamp"></td></tr>
       </table>
@@ -144,7 +154,7 @@
     <div class="modal-body">
       <form id="payslipForm">
         <label for="payslipEmployee">Employee</label>
-        <select id="payslipEmployee" required></select>
+        <select id="payslipEmployee" required onchange="autoFillPayslipAmounts()"></select>
         <label for="payslipMonth">Month</label>
         <input id="payslipMonth" type="month" required>
         <label for="payslipBasic">Basic pay</label>
@@ -154,6 +164,21 @@
         <label for="payslipDeductions">Deductions</label>
         <input id="payslipDeductions" type="number" min="0" step="0.01" value="0">
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Generate payslip</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk auto-generate payslips modal -->
+<div class="modal-backdrop" id="bulkPayslipModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Auto-generate for everyone</h3><button class="modal-close" onclick="closeModal('bulkPayslipModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="bulkPayslipForm">
+        <label for="bulkPayslipMonth">Month</label>
+        <input id="bulkPayslipMonth" type="month" required>
+        <div class="hint-box" style="margin-top:-6px;">Generates a payslip for every active employee using their saved salary details. Anyone who already has a payslip for this month is skipped.</div>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:14px;">Generate for all employees</button>
       </form>
     </div>
   </div>

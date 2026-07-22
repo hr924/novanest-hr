@@ -29,7 +29,8 @@ function defaultData() {
     nextId: {
       users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
-      tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1
+      tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
+      employeeCode: 1001
     },
     users: [
       { id: 1, name: 'Alex Morgan', email: adminEmail, password: adminPasswordHash, role: 'admin' },
@@ -61,13 +62,17 @@ function defaultData() {
     employees: [
       {
         id: 1,
+        employeeCode: 'NN001001',
         name: 'Jordan Lee',
         email: 'jordan.lee@novanest.com',
         department: 'Engineering',
         position: 'Frontend Engineer',
         joinDate: '2024-03-01',
         status: 'active',
-        phone: '555-0100'
+        phone: '555-0100',
+        basicSalary: 0,
+        allowances: 0,
+        deductions: 0
       }
     ],
     leave: [],
@@ -116,6 +121,21 @@ function migrate(data) {
   ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows'].forEach((key) => {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
   });
+  if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }
+
+  // Backfill employee codes and salary fields for employees created before this feature existed.
+  if (Array.isArray(data.employees)) {
+    data.employees.forEach((emp) => {
+      if (!emp.employeeCode) {
+        emp.employeeCode = 'NN' + String(data.nextId.employeeCode).padStart(6, '0');
+        data.nextId.employeeCode += 1;
+        changed = true;
+      }
+      if (typeof emp.basicSalary !== 'number') { emp.basicSalary = 0; changed = true; }
+      if (typeof emp.allowances !== 'number') { emp.allowances = 0; changed = true; }
+      if (typeof emp.deductions !== 'number') { emp.deductions = 0; changed = true; }
+    });
+  }
   return changed;
 }
 
