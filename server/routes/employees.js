@@ -19,10 +19,16 @@ function genEmployeeCode(db) {
 // Admin: list all employees (flags whether each has a login account)
 router.get('/', requireAdmin, (req, res) => {
   const db = readDB();
-  const employees = db.employees.map(e => ({
-    ...e,
-    hasLogin: db.users.some(u => u.employeeId === e.id)
-  }));
+  const employees = db.employees.map(e => {
+    const loginUser = db.users.find(u => u.employeeId === e.id);
+    const manager = e.managerId ? db.employees.find(m => m.id === e.managerId) : null;
+    return {
+      ...e,
+      hasLogin: !!loginUser,
+      loginRole: loginUser ? loginUser.role : null,
+      managerName: manager ? manager.name : null
+    };
+  });
   res.json({ employees });
 });
 
@@ -43,7 +49,7 @@ router.get('/:id', requireAdmin, (req, res) => {
 
 // Admin: add employee directly, optionally creating a login account too
 router.post('/', requireAdmin, (req, res) => {
-  const { name, email, department, position, joinDate, phone, createLogin, password, basicSalary, allowances, deductions } = req.body;
+  const { name, email, department, position, joinDate, phone, createLogin, password, basicSalary, allowances, deductions, managerId, role } = req.body;
   if (!name || !email || !department || !position) {
     return res.status(400).json({ error: 'name, email, department and position are required' });
   }
@@ -60,6 +66,7 @@ router.post('/', requireAdmin, (req, res) => {
     joinDate: joinDate || new Date().toISOString().slice(0, 10),
     status: 'active',
     phone: phone || '',
+    managerId: managerId ? Number(managerId) : null,
     basicSalary: Number(basicSalary) || 0,
     allowances: Number(allowances) || 0,
     deductions: Number(deductions) || 0
@@ -73,7 +80,7 @@ router.post('/', requireAdmin, (req, res) => {
       id: nextId(db, 'users'),
       name, email,
       password: bcrypt.hashSync(plainPassword, 8),
-      role: 'employee',
+      role: role === 'manager' ? 'manager' : 'employee',
       employeeId: employee.id
     });
     credentials = { email, password: plainPassword };
@@ -85,7 +92,7 @@ router.post('/', requireAdmin, (req, res) => {
 
 // Admin: create a login account for an employee who doesn't have one yet
 router.post('/:id/create-login', requireAdmin, (req, res) => {
-  const { password } = req.body;
+  const { password, role } = req.body;
   const db = readDB();
   const employee = db.employees.find(e => e.id === Number(req.params.id));
   if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -101,7 +108,7 @@ router.post('/:id/create-login', requireAdmin, (req, res) => {
     name: employee.name,
     email: employee.email,
     password: bcrypt.hashSync(plainPassword, 8),
-    role: 'employee',
+    role: role === 'manager' ? 'manager' : 'employee',
     employeeId: employee.id
   });
   writeDB(db);
@@ -113,7 +120,14 @@ router.put('/:id', requireAdmin, (req, res) => {
   const db = readDB();
   const emp = db.employees.find(e => e.id === Number(req.params.id));
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
-  Object.assign(emp, req.body);
+  const body = { ...req.body };
+  ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
+    if (body[field] !== undefined) body[field] = Number(body[field]) || 0;
+  });
+  if (body.managerId !== undefined) {
+    body.managerId = body.managerId === '' || body.managerId === null ? null : Number(body.managerId);
+  }
+  Object.assign(emp, body);
   writeDB(db);
   res.json({ employee: emp });
 });

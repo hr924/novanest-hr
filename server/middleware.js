@@ -12,4 +12,11 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireLogin, requireAdmin };
+function requireManagerOrAdmin(req, res, next) {
+  if (!req.session.user || !['admin', 'manager'].includes(req.session.user.role)) {
+    return res.status(403).json({ error: 'Manager or admin access required' });
+  }
+  next();
+}
+
+module.exports = { requireLogin, requireAdmin, requireManagerOrAdmin };

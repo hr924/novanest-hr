@@ -234,7 +234,7 @@ tr:last-child td { border-bottom: none; }
   border: 1px solid transparent;
 }
 .pill-open, .pill-approved, .pill-hired, .pill-present, .pill-active { background: #E5EEF7; color: var(--ledger-dark); border-color: #C3D9EE; }
-.pill-applied, .pill-pending, .pill-screening { background: #FBF0DC; color: #8A5D18; border-color: #EFDBAB; }
+.pill-applied, .pill-pending, .pill-screening, .pill-pending-manager, .pill-pending-hr { background: #FBF0DC; color: #8A5D18; border-color: #EFDBAB; }
 .pill-interview, .pill-offer { background: #E9EEF7; color: #2E4A85; border-color: #CBD8F0; }
 .pill-rejected, .pill-closed, .pill-absent, .pill-inactive { background: #FBE7E2; color: var(--rust); border-color: #F0C4B8; }
 

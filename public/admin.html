@@ -94,6 +94,8 @@
         <input id="empJoinDate" type="date" required>
         <label for="empStatus">Status</label>
         <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <label for="empManager">Manager</label>
+        <select id="empManager"><option value="">No manager assigned</option></select>
         <label for="empBasicSalary">Basic salary (monthly)</label>
         <input id="empBasicSalary" type="number" min="0" step="0.01" value="0">
         <label for="empAllowances">Allowances (monthly)</label>
@@ -106,6 +108,8 @@
             <input type="checkbox" id="empCreateLogin" style="width:auto; margin:0;"> Create a login for this employee
           </label>
           <div id="loginPasswordWrap" style="display:none; margin-top:10px;">
+            <label for="empLoginRole">Login role</label>
+            <select id="empLoginRole"><option value="employee">Employee</option><option value="manager">Manager</option></select>
             <label for="empLoginPassword">Password (leave blank to auto-generate)</label>
             <input id="empLoginPassword" placeholder="Auto-generated if left blank">
           </div>
@@ -138,9 +142,11 @@
     <div class="modal-body">
       <form id="setPasswordForm">
         <input type="hidden" id="setPasswordEmpId">
+        <label for="setPasswordRole">Login role</label>
+        <select id="setPasswordRole"><option value="employee">Employee</option><option value="manager">Manager</option></select>
         <label for="setPasswordValue">Password</label>
         <input id="setPasswordValue" placeholder="Leave blank to auto-generate one">
-        <div class="hint-box" style="margin-top:-6px;">The employee signs in with their email and this password at /login.html.</div>
+        <div class="hint-box" style="margin-top:-6px;">The employee signs in with their email or Employee ID and this password at /login.html.</div>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:14px;">Create login</button>
       </form>
     </div>

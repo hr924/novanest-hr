@@ -1,9 +1,13 @@
 let CURRENT_USER = null;
 
 async function init() {
-  CURRENT_USER = await requireSession(['employee', 'admin']);
+  CURRENT_USER = await requireSession(['employee', 'manager', 'admin']);
   if (!CURRENT_USER) return;
   document.getElementById('whoName').textContent = CURRENT_USER.name;
+  document.getElementById('whoRole').textContent = CURRENT_USER.role === 'manager' ? 'Manager' : 'Employee';
+  if (CURRENT_USER.role === 'manager') {
+    document.getElementById('teamApprovalsLink').style.display = 'block';
+  }
 
   document.querySelectorAll('.sidebar-link').forEach(link => {
     link.addEventListener('click', () => switchView(link.dataset.view));
@@ -25,7 +29,8 @@ async function switchView(view) {
     profile: renderProfile, attendance: renderAttendance, leave: renderLeave,
     payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets,
-    cases: renderCases, surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows
+    cases: renderCases, surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows,
+    teamApprovals: renderTeamApprovals
   };
   await renderers[view]();
 }
@@ -122,8 +127,12 @@ async function renderLeave() {
       <div class="panel-header"><h2>My requests</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('leaveModal').classList.add('show')">+ Request leave</button></div>
       <div class="panel-body">
         ${leave.length === 0 ? emptyState('No leave requests yet') : renderTable(
-          ['Type', 'Dates', 'Reason', 'Status'],
-          leave.map(l => [escapeHtml(l.type), `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`, `<span class="muted">${escapeHtml(l.reason || '—')}</span>`, pill(l.status)])
+          ['Type', 'Dates', 'Reason', 'Manager', 'HR', 'Overall'],
+          leave.map(l => [
+            escapeHtml(l.type), `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`,
+            `<span class="muted">${escapeHtml(l.reason || '—')}</span>`,
+            pill(l.managerStatus), pill(l.hrStatus), pill(l.overallStatus)
+          ])
         )}
       </div>
     </div>
@@ -376,6 +385,37 @@ async function renderWorkflows() {
 async function toggleWorkflowStep(workflowId, stepId, done) {
   try { await api(`/workflows/${workflowId}/steps/${stepId}`, { method: 'PUT', body: { done } }); }
   catch (err) { toast(err.message, true); renderWorkflows(); }
+}
+
+/* ---------------- Team approvals (manager only) ---------------- */
+async function renderTeamApprovals() {
+  const { leave } = await api('/leave');
+  document.getElementById('main').innerHTML = `
+    <h1>Team approvals</h1>
+    <div class="subtitle">Leave requests from people who report to you.</div>
+    <div class="panel"><div class="panel-body">
+      ${leave.length === 0 ? emptyState('No requests from your team yet') : renderTable(
+        ['Employee', 'Type', 'Dates', 'Reason', 'Your decision', ''],
+        leave.map(l => [
+          escapeHtml(l.employeeName), escapeHtml(l.type),
+          `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`,
+          `<span class="muted">${escapeHtml(l.reason || '—')}</span>`,
+          pill(l.managerStatus),
+          l.managerStatus === 'pending' ? `<span class="section-actions">
+            <button class="btn btn-primary btn-sm" onclick="managerDecide(${l.id}, 'approved')">Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="managerDecide(${l.id}, 'rejected')">Decline</button>
+          </span>` : '<span class="muted">Decided</span>'
+        ])
+      )}
+    </div></div>
+  `;
+}
+async function managerDecide(id, status) {
+  try {
+    await api(`/leave/${id}/manager-status`, { method: 'PUT', body: { status } });
+    toast('Decision recorded');
+    renderTeamApprovals();
+  } catch (err) { toast(err.message, true); }
 }
 
 init();

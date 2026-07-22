@@ -238,12 +238,14 @@ async function renderEmployees() {
       <div class="panel-header"><h2>Roster</h2><button class="btn btn-primary btn-sm" onclick="openEmpModal()">+ Add employee</button></div>
       <div class="panel-body">
         ${employees.length === 0 ? emptyState('No employees yet') : renderTable(
-          ['Employee ID', 'Name', 'Department', 'Position', 'Joined', 'Status', 'Login', ''],
+          ['Employee ID', 'Name', 'Department', 'Position', 'Manager', 'Status', 'Login', ''],
           employees.map(e => [
             `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
             `${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span>`,
-            escapeHtml(e.department), escapeHtml(e.position), fmtDate(e.joinDate), pill(e.status),
-            e.hasLogin ? pill('active') : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
+            escapeHtml(e.department), escapeHtml(e.position),
+            e.managerName ? escapeHtml(e.managerName) : '<span class="muted">—</span>',
+            pill(e.status),
+            e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
             `<span class="section-actions">
               <button class="btn btn-ghost btn-sm" onclick="openEmpModal(${e.id})">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Remove</button>
@@ -263,6 +265,12 @@ function openEmpModal(id) {
   document.getElementById('loginPasswordWrap').style.display = 'none';
   document.getElementById('loginFieldsWrap').style.display = 'block';
   document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
+
+  const managerSelect = document.getElementById('empManager');
+  const managerOptions = CACHE.employees.filter(e => !id || e.id !== id);
+  managerSelect.innerHTML = '<option value="">No manager assigned</option>' +
+    managerOptions.map(e => `<option value="${e.id}">${escapeHtml(e.name)} (${escapeHtml(e.employeeCode || '')})</option>`).join('');
+
   if (id) {
     const emp = CACHE.employees.find(e => e.id === id);
     document.getElementById('empId').value = emp.id;
@@ -273,6 +281,7 @@ function openEmpModal(id) {
     document.getElementById('empPhone').value = emp.phone || '';
     document.getElementById('empJoinDate').value = emp.joinDate || '';
     document.getElementById('empStatus').value = emp.status;
+    document.getElementById('empManager').value = emp.managerId || '';
     document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
     document.getElementById('empAllowances').value = emp.allowances || 0;
     document.getElementById('empDeductions').value = emp.deductions || 0;
@@ -294,6 +303,7 @@ async function submitEmployee(e) {
     phone: document.getElementById('empPhone').value,
     joinDate: document.getElementById('empJoinDate').value,
     status: document.getElementById('empStatus').value,
+    managerId: document.getElementById('empManager').value,
     basicSalary: document.getElementById('empBasicSalary').value,
     allowances: document.getElementById('empAllowances').value,
     deductions: document.getElementById('empDeductions').value
@@ -301,6 +311,7 @@ async function submitEmployee(e) {
   if (!id) {
     payload.createLogin = document.getElementById('empCreateLogin').checked;
     payload.password = document.getElementById('empLoginPassword').value;
+    payload.role = document.getElementById('empLoginRole').value;
   }
   try {
     if (id) {
@@ -322,6 +333,7 @@ async function createLoginFor(id) {
   document.getElementById('setPasswordEmpId').value = id;
   document.getElementById('setPasswordEmpName').textContent = emp ? `— ${emp.name}` : '';
   document.getElementById('setPasswordValue').value = '';
+  document.getElementById('setPasswordRole').value = 'employee';
   document.getElementById('setPasswordModal').classList.add('show');
 }
 
@@ -329,8 +341,9 @@ async function submitLoginPassword(e) {
   e.preventDefault();
   const id = document.getElementById('setPasswordEmpId').value;
   const password = document.getElementById('setPasswordValue').value;
+  const role = document.getElementById('setPasswordRole').value;
   try {
-    const { credentials } = await api(`/employees/${id}/create-login`, { method: 'POST', body: { password } });
+    const { credentials } = await api(`/employees/${id}/create-login`, { method: 'POST', body: { password, role } });
     closeModal('setPasswordModal');
     const emp = CACHE.employees.find(e => e.id === Number(id));
     showCredentials(credentials, emp);
@@ -359,21 +372,26 @@ async function renderLeave() {
   const { leave } = await api('/leave');
   document.getElementById('main').innerHTML = `
     <h1>Leave requests</h1>
-    <div class="subtitle">Approve or decline time-off requests from employees.</div>
+    <div class="subtitle">Final HR approval — requires manager approval first.</div>
     <div class="panel">
       <div class="panel-header"><h2>All requests</h2></div>
       <div class="panel-body">
         ${leave.length === 0 ? emptyState('No leave requests yet') : renderTable(
-          ['Employee', 'Type', 'Dates', 'Reason', 'Status', ''],
+          ['Employee', 'Type', 'Dates', 'Reason', 'Manager', 'HR decision', ''],
           leave.map(l => [
             escapeHtml(l.employeeName), escapeHtml(l.type),
             `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`,
             `<span class="muted">${escapeHtml(l.reason || '—')}</span>`,
-            pill(l.status),
-            l.status === 'pending' ? `<span class="section-actions">
-              <button class="btn btn-primary btn-sm" onclick="setLeaveStatus(${l.id}, 'approved')">Approve</button>
-              <button class="btn btn-danger btn-sm" onclick="setLeaveStatus(${l.id}, 'rejected')">Decline</button>
-            </span>` : '<span class="muted">Resolved</span>'
+            pill(l.managerStatus),
+            pill(l.hrStatus),
+            l.hrStatus === 'pending'
+              ? (l.managerStatus === 'approved'
+                  ? `<span class="section-actions">
+                      <button class="btn btn-primary btn-sm" onclick="setLeaveStatus(${l.id}, 'approved')">Approve</button>
+                      <button class="btn btn-danger btn-sm" onclick="setLeaveStatus(${l.id}, 'rejected')">Decline</button>
+                    </span>`
+                  : `<span class="muted" style="font-size:12px;">Waiting on manager</span>`)
+              : '<span class="muted">Resolved</span>'
           ])
         )}
       </div>

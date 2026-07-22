@@ -70,6 +70,7 @@ function defaultData() {
         joinDate: '2024-03-01',
         status: 'active',
         phone: '555-0100',
+        managerId: null,
         basicSalary: 0,
         allowances: 0,
         deductions: 0
@@ -131,9 +132,28 @@ function migrate(data) {
         data.nextId.employeeCode += 1;
         changed = true;
       }
-      if (typeof emp.basicSalary !== 'number') { emp.basicSalary = 0; changed = true; }
-      if (typeof emp.allowances !== 'number') { emp.allowances = 0; changed = true; }
-      if (typeof emp.deductions !== 'number') { emp.deductions = 0; changed = true; }
+      // Coerce (not reset) any salary figures that were saved as strings, so real values aren't lost.
+      ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
+        if (typeof emp[field] !== 'number') {
+          emp[field] = Number(emp[field]) || 0;
+          changed = true;
+        }
+      });
+      if (emp.managerId === undefined) { emp.managerId = null; changed = true; }
+    });
+  }
+
+  // Backfill two-stage approval fields on existing leave requests.
+  if (Array.isArray(data.leave)) {
+    data.leave.forEach((req) => {
+      if (!req.managerStatus) {
+        req.managerStatus = req.status === 'approved' ? 'approved' : 'pending';
+        changed = true;
+      }
+      if (!req.hrStatus) {
+        req.hrStatus = (req.status === 'approved' || req.status === 'rejected') ? req.status : 'pending';
+        changed = true;
+      }
     });
   }
   return changed;
