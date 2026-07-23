@@ -103,7 +103,47 @@
         <label for="empDeductions">Standard deductions (monthly)</label>
         <input id="empDeductions" type="number" min="0" step="0.01" value="0">
         <div class="hint-box" style="margin-top:-6px;">These salary figures are used to auto-generate payslips each month.</div>
-        <div id="loginFieldsWrap">
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Personal information</div>
+        <label for="empDob">Date of birth</label>
+        <input id="empDob" type="date">
+        <label for="empGender">Gender</label>
+        <select id="empGender">
+          <option value="">Prefer not to say</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
+        <label for="empBloodGroup">Blood group</label>
+        <input id="empBloodGroup" placeholder="e.g. O+">
+        <label for="empAddress">Address</label>
+        <textarea id="empAddress"></textarea>
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Emergency contact</div>
+        <label for="empEmergencyName">Contact name</label>
+        <input id="empEmergencyName">
+        <label for="empEmergencyRelation">Relationship</label>
+        <input id="empEmergencyRelation" placeholder="e.g. Spouse, Parent, Sibling">
+        <label for="empEmergencyPhone">Contact phone</label>
+        <input id="empEmergencyPhone">
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">ID documents</div>
+        <label for="empAadhaar">Aadhaar number</label>
+        <input id="empAadhaar">
+        <label for="empPan">PAN number</label>
+        <input id="empPan">
+        <label for="empPassport">Passport number</label>
+        <input id="empPassport">
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Bank details</div>
+        <label for="empBankName">Bank name</label>
+        <input id="empBankName">
+        <label for="empBankAccount">Account number</label>
+        <input id="empBankAccount">
+        <label for="empBankIfsc">IFSC code</label>
+        <input id="empBankIfsc">
+
+        <div id="loginFieldsWrap" style="border-top:1px solid var(--line); margin-top: 18px; padding-top: 14px;">
           <label style="display:flex; align-items:center; gap:8px; font-weight:600; color: var(--ink);">
             <input type="checkbox" id="empCreateLogin" style="width:auto; margin:0;"> Create a login for this employee
           </label>

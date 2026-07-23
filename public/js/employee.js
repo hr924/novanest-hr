@@ -52,19 +52,57 @@ async function renderProfile() {
   const main = document.getElementById('main');
   try {
     const { employee } = await api('/employees/me');
+    const row = (label, value) => `<tr><td class="muted" style="width:180px;">${label}</td><td>${value}</td></tr>`;
     main.innerHTML = `
       <h1>My profile</h1>
       <div class="subtitle">Your employment record on file.</div>
-      <div class="panel"><div class="panel-body">
+      <div class="panel" style="margin-bottom:20px;"><div class="panel-body">
         <table>
-          <tr><td class="muted" style="width:160px;">Employee ID</td><td class="timestamp">${escapeHtml(employee.employeeCode || '—')}</td></tr>
-          <tr><td class="muted">Full name</td><td>${escapeHtml(employee.name)}</td></tr>
-          <tr><td class="muted">Email</td><td>${escapeHtml(employee.email)}</td></tr>
-          <tr><td class="muted">Phone</td><td>${escapeHtml(employee.phone || '—')}</td></tr>
-          <tr><td class="muted">Department</td><td>${escapeHtml(employee.department)}</td></tr>
-          <tr><td class="muted">Position</td><td>${escapeHtml(employee.position)}</td></tr>
-          <tr><td class="muted">Joined</td><td>${fmtDate(employee.joinDate)}</td></tr>
-          <tr><td class="muted">Status</td><td>${pill(employee.status)}</td></tr>
+          ${row('Employee ID', `<span class="timestamp">${escapeHtml(employee.employeeCode || '—')}</span>`)}
+          ${row('Full name', escapeHtml(employee.name))}
+          ${row('Email', escapeHtml(employee.email))}
+          ${row('Phone', escapeHtml(employee.phone || '—'))}
+          ${row('Department', escapeHtml(employee.department))}
+          ${row('Position', escapeHtml(employee.position))}
+          ${row('Joined', fmtDate(employee.joinDate))}
+          ${row('Status', pill(employee.status))}
+        </table>
+      </div></div>
+
+      <div class="filetab">Personal information</div>
+      <div class="panel" style="border-top-left-radius:0; margin-bottom:20px;"><div class="panel-body">
+        <table>
+          ${row('Date of birth', employee.dob ? fmtDate(employee.dob) : '—')}
+          ${row('Gender', escapeHtml(employee.gender || '—'))}
+          ${row('Blood group', escapeHtml(employee.bloodGroup || '—'))}
+          ${row('Address', escapeHtml(employee.address || '—'))}
+        </table>
+      </div></div>
+
+      <div class="filetab">Emergency contact</div>
+      <div class="panel" style="border-top-left-radius:0; margin-bottom:20px;"><div class="panel-body">
+        <table>
+          ${row('Name', escapeHtml(employee.emergencyContactName || '—'))}
+          ${row('Relationship', escapeHtml(employee.emergencyContactRelation || '—'))}
+          ${row('Phone', escapeHtml(employee.emergencyContactPhone || '—'))}
+        </table>
+      </div></div>
+
+      <div class="filetab">ID documents</div>
+      <div class="panel" style="border-top-left-radius:0; margin-bottom:20px;"><div class="panel-body">
+        <table>
+          ${row('Aadhaar number', escapeHtml(employee.aadhaarNumber || '—'))}
+          ${row('PAN number', escapeHtml(employee.panNumber || '—'))}
+          ${row('Passport number', escapeHtml(employee.passportNumber || '—'))}
+        </table>
+      </div></div>
+
+      <div class="filetab">Bank details</div>
+      <div class="panel" style="border-top-left-radius:0;"><div class="panel-body">
+        <table>
+          ${row('Bank name', escapeHtml(employee.bankName || '—'))}
+          ${row('Account number', escapeHtml(employee.bankAccountNumber || '—'))}
+          ${row('IFSC code', escapeHtml(employee.bankIFSC || '—'))}
         </table>
       </div></div>
     `;

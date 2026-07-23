@@ -285,6 +285,19 @@ function openEmpModal(id) {
     document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
     document.getElementById('empAllowances').value = emp.allowances || 0;
     document.getElementById('empDeductions').value = emp.deductions || 0;
+    document.getElementById('empDob').value = emp.dob || '';
+    document.getElementById('empGender').value = emp.gender || '';
+    document.getElementById('empBloodGroup').value = emp.bloodGroup || '';
+    document.getElementById('empAddress').value = emp.address || '';
+    document.getElementById('empEmergencyName').value = emp.emergencyContactName || '';
+    document.getElementById('empEmergencyRelation').value = emp.emergencyContactRelation || '';
+    document.getElementById('empEmergencyPhone').value = emp.emergencyContactPhone || '';
+    document.getElementById('empAadhaar').value = emp.aadhaarNumber || '';
+    document.getElementById('empPan').value = emp.panNumber || '';
+    document.getElementById('empPassport').value = emp.passportNumber || '';
+    document.getElementById('empBankName').value = emp.bankName || '';
+    document.getElementById('empBankAccount').value = emp.bankAccountNumber || '';
+    document.getElementById('empBankIfsc').value = emp.bankIFSC || '';
     document.getElementById('empModalTitle').textContent = 'Edit employee — ' + (emp.employeeCode || '');
     // Login accounts for existing employees are managed from the roster table, not this form.
     document.getElementById('loginFieldsWrap').style.display = 'none';
@@ -306,7 +319,20 @@ async function submitEmployee(e) {
     managerId: document.getElementById('empManager').value,
     basicSalary: document.getElementById('empBasicSalary').value,
     allowances: document.getElementById('empAllowances').value,
-    deductions: document.getElementById('empDeductions').value
+    deductions: document.getElementById('empDeductions').value,
+    dob: document.getElementById('empDob').value,
+    gender: document.getElementById('empGender').value,
+    bloodGroup: document.getElementById('empBloodGroup').value,
+    address: document.getElementById('empAddress').value,
+    emergencyContactName: document.getElementById('empEmergencyName').value,
+    emergencyContactRelation: document.getElementById('empEmergencyRelation').value,
+    emergencyContactPhone: document.getElementById('empEmergencyPhone').value,
+    aadhaarNumber: document.getElementById('empAadhaar').value,
+    panNumber: document.getElementById('empPan').value,
+    passportNumber: document.getElementById('empPassport').value,
+    bankName: document.getElementById('empBankName').value,
+    bankAccountNumber: document.getElementById('empBankAccount').value,
+    bankIFSC: document.getElementById('empBankIfsc').value
   };
   if (!id) {
     payload.createLogin = document.getElementById('empCreateLogin').checked;

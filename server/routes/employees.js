@@ -11,9 +11,28 @@ function genPassword() {
 
 function genEmployeeCode(db) {
   if (typeof db.nextId.employeeCode !== 'number') db.nextId.employeeCode = 1001;
-  const code = 'NN' + String(db.nextId.employeeCode).padStart(6, '0');
-  db.nextId.employeeCode += 1;
+  const usedCodes = new Set(db.employees.map(e => e.employeeCode).filter(Boolean));
+  let code;
+  do {
+    code = 'NN' + String(db.nextId.employeeCode).padStart(6, '0');
+    db.nextId.employeeCode += 1;
+  } while (usedCodes.has(code));
   return code;
+}
+
+const EXTENDED_PROFILE_FIELDS = [
+  'dob', 'gender', 'bloodGroup', 'address',
+  'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
+  'aadhaarNumber', 'panNumber', 'passportNumber',
+  'bankAccountNumber', 'bankIFSC', 'bankName'
+];
+
+function pickExtendedFields(body) {
+  const picked = {};
+  EXTENDED_PROFILE_FIELDS.forEach((field) => {
+    picked[field] = body[field] !== undefined ? String(body[field]) : '';
+  });
+  return picked;
 }
 
 // Admin: list all employees (flags whether each has a login account)
@@ -69,7 +88,8 @@ router.post('/', requireAdmin, (req, res) => {
     managerId: managerId ? Number(managerId) : null,
     basicSalary: Number(basicSalary) || 0,
     allowances: Number(allowances) || 0,
-    deductions: Number(deductions) || 0
+    deductions: Number(deductions) || 0,
+    ...pickExtendedFields(req.body)
   };
   db.employees.push(employee);
 

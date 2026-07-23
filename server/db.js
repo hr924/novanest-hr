@@ -30,7 +30,7 @@ function defaultData() {
       users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
       tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
-      employeeCode: 1001
+      employeeCode: 1002
     },
     users: [
       { id: 1, name: 'Alex Morgan', email: adminEmail, password: adminPasswordHash, role: 'admin' },
@@ -73,7 +73,20 @@ function defaultData() {
         managerId: null,
         basicSalary: 0,
         allowances: 0,
-        deductions: 0
+        deductions: 0,
+        dob: '',
+        gender: '',
+        bloodGroup: '',
+        address: '',
+        emergencyContactName: '',
+        emergencyContactRelation: '',
+        emergencyContactPhone: '',
+        aadhaarNumber: '',
+        panNumber: '',
+        passportNumber: '',
+        bankAccountNumber: '',
+        bankIFSC: '',
+        bankName: ''
       }
     ],
     leave: [],
@@ -126,12 +139,38 @@ function migrate(data) {
 
   // Backfill employee codes and salary fields for employees created before this feature existed.
   if (Array.isArray(data.employees)) {
+    const usedCodes = new Set(data.employees.map(e => e.employeeCode).filter(Boolean));
+
+    function nextUniqueCode() {
+      let code;
+      do {
+        code = 'NN' + String(data.nextId.employeeCode).padStart(6, '0');
+        data.nextId.employeeCode += 1;
+      } while (usedCodes.has(code));
+      usedCodes.add(code);
+      return code;
+    }
+
+    // First pass: give a code to anyone missing one entirely.
     data.employees.forEach((emp) => {
       if (!emp.employeeCode) {
-        emp.employeeCode = 'NN' + String(data.nextId.employeeCode).padStart(6, '0');
-        data.nextId.employeeCode += 1;
+        emp.employeeCode = nextUniqueCode();
         changed = true;
       }
+    });
+
+    // Second pass: if two employees ended up sharing the same code (e.g. an
+    // earlier collision), reassign the duplicate(s) so every code is unique.
+    const seen = new Set();
+    data.employees.forEach((emp) => {
+      if (seen.has(emp.employeeCode)) {
+        emp.employeeCode = nextUniqueCode();
+        changed = true;
+      }
+      seen.add(emp.employeeCode);
+    });
+
+    data.employees.forEach((emp) => {
       // Coerce (not reset) any salary figures that were saved as strings, so real values aren't lost.
       ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
         if (typeof emp[field] !== 'number') {
@@ -140,6 +179,14 @@ function migrate(data) {
         }
       });
       if (emp.managerId === undefined) { emp.managerId = null; changed = true; }
+      [
+        'dob', 'gender', 'bloodGroup', 'address',
+        'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
+        'aadhaarNumber', 'panNumber', 'passportNumber',
+        'bankAccountNumber', 'bankIFSC', 'bankName'
+      ].forEach((field) => {
+        if (typeof emp[field] !== 'string') { emp[field] = ''; changed = true; }
+      });
     });
   }
 
