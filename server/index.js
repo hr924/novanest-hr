@@ -24,7 +24,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '8mb' }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'hr-portal-dev-secret-change-me',
   resave: false,

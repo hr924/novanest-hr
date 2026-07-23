@@ -30,7 +30,8 @@ function defaultData() {
       users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
       tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
-      employeeCode: 1002
+      employeeCode: 1002,
+      employeeDocument: 1
     },
     users: [
       { id: 1, name: 'Alex Morgan', email: adminEmail, password: adminPasswordHash, role: 'admin' },
@@ -86,7 +87,9 @@ function defaultData() {
         passportNumber: '',
         bankAccountNumber: '',
         bankIFSC: '',
-        bankName: ''
+        bankName: '',
+        profilePhoto: '',
+        documents: []
       }
     ],
     leave: [],
@@ -136,6 +139,7 @@ function migrate(data) {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
   });
   if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }
+  if (typeof data.nextId.employeeDocument !== 'number') { data.nextId.employeeDocument = 1; changed = true; }
 
   // Backfill employee codes and salary fields for employees created before this feature existed.
   if (Array.isArray(data.employees)) {
@@ -183,10 +187,11 @@ function migrate(data) {
         'dob', 'gender', 'bloodGroup', 'address',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
         'aadhaarNumber', 'panNumber', 'passportNumber',
-        'bankAccountNumber', 'bankIFSC', 'bankName'
+        'bankAccountNumber', 'bankIFSC', 'bankName', 'profilePhoto'
       ].forEach((field) => {
         if (typeof emp[field] !== 'string') { emp[field] = ''; changed = true; }
       });
+      if (!Array.isArray(emp.documents)) { emp.documents = []; changed = true; }
     });
   }
 

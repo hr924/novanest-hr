@@ -129,19 +129,30 @@
 
         <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">ID documents</div>
         <label for="empAadhaar">Aadhaar number</label>
-        <input id="empAadhaar">
+        <input id="empAadhaar" maxlength="12" inputmode="numeric" placeholder="12 digits">
         <label for="empPan">PAN number</label>
-        <input id="empPan">
+        <input id="empPan" maxlength="10" placeholder="AAAAA9999A" style="text-transform: uppercase;">
         <label for="empPassport">Passport number</label>
-        <input id="empPassport">
+        <input id="empPassport" maxlength="12">
 
         <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Bank details</div>
         <label for="empBankName">Bank name</label>
         <input id="empBankName">
         <label for="empBankAccount">Account number</label>
-        <input id="empBankAccount">
+        <input id="empBankAccount" maxlength="20" inputmode="numeric" placeholder="6-20 digits">
         <label for="empBankIfsc">IFSC code</label>
-        <input id="empBankIfsc">
+        <input id="empBankIfsc" maxlength="11" placeholder="AAAA0999999" style="text-transform: uppercase;">
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Profile photo</div>
+        <div id="empPhotoPreviewWrap" style="display:none; margin-bottom:10px;">
+          <img id="empPhotoPreview" style="width:64px; height:64px; border-radius:50%; object-fit:cover; border:1px solid var(--line);">
+        </div>
+        <input type="file" id="empPhotoFile" accept="image/*">
+
+        <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Upload documents</div>
+        <div id="empExistingDocs"></div>
+        <input type="file" id="empDocFiles" multiple>
+        <div class="hint-box" style="margin-top:8px;">New files upload as soon as you save. Existing employees can have documents added anytime by reopening Edit.</div>
 
         <div id="loginFieldsWrap" style="border-top:1px solid var(--line); margin-top: 18px; padding-top: 14px;">
           <label style="display:flex; align-items:center; gap:8px; font-weight:600; color: var(--ink);">

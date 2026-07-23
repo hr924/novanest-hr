@@ -34,6 +34,25 @@ async function init() {
   document.getElementById('empCreateLogin').addEventListener('change', (e) => {
     document.getElementById('loginPasswordWrap').style.display = e.target.checked ? 'block' : 'none';
   });
+  document.getElementById('empPhotoFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    readFileAsDataUrl(file).then((dataUrl) => {
+      document.getElementById('empPhotoPreview').src = dataUrl;
+      document.getElementById('empPhotoPreviewWrap').style.display = 'block';
+    });
+  });
+  ['empPan', 'empBankIfsc'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase();
+    });
+  });
+  document.getElementById('empAadhaar').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 12);
+  });
+  document.getElementById('empBankAccount').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 20);
+  });
 
   await switchView('overview');
 }
@@ -241,7 +260,10 @@ async function renderEmployees() {
           ['Employee ID', 'Name', 'Department', 'Position', 'Manager', 'Status', 'Login', ''],
           employees.map(e => [
             `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
-            `${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span>`,
+            `<span style="display:flex; align-items:center; gap:10px;">
+              ${e.profilePhoto ? `<img src="${e.profilePhoto}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">` : `<span style="width:32px; height:32px; border-radius:50%; background:var(--tab-bg); display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:var(--ink-soft);">${escapeHtml((e.name || '?').charAt(0))}</span>`}
+              <span>${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span></span>
+            </span>`,
             escapeHtml(e.department), escapeHtml(e.position),
             e.managerName ? escapeHtml(e.managerName) : '<span class="muted">—</span>',
             pill(e.status),
@@ -301,13 +323,78 @@ function openEmpModal(id) {
     document.getElementById('empModalTitle').textContent = 'Edit employee — ' + (emp.employeeCode || '');
     // Login accounts for existing employees are managed from the roster table, not this form.
     document.getElementById('loginFieldsWrap').style.display = 'none';
+
+    if (emp.profilePhoto) {
+      document.getElementById('empPhotoPreview').src = emp.profilePhoto;
+      document.getElementById('empPhotoPreviewWrap').style.display = 'block';
+    } else {
+      document.getElementById('empPhotoPreviewWrap').style.display = 'none';
+    }
+    renderExistingDocs(emp);
+  } else {
+    document.getElementById('empPhotoPreviewWrap').style.display = 'none';
+    document.getElementById('empExistingDocs').innerHTML = '';
   }
   document.getElementById('empModal').classList.add('show');
+}
+
+function renderExistingDocs(emp) {
+  const docs = emp.documents || [];
+  const wrap = document.getElementById('empExistingDocs');
+  if (docs.length === 0) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = docs.map(d => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:13px;">
+      <a href="${d.dataUrl}" download="${escapeHtml(d.name)}">${escapeHtml(d.name)}</a>
+      <button type="button" class="btn btn-danger btn-sm" onclick="deleteEmployeeDocument(${emp.id}, ${d.id})">Remove</button>
+    </div>
+  `).join('');
+}
+
+async function deleteEmployeeDocument(empId, docId) {
+  if (!confirm('Remove this document?')) return;
+  try {
+    await api(`/employees/${empId}/documents/${docId}`, { method: 'DELETE' });
+    const { employees } = await api('/employees');
+    CACHE.employees = employees;
+    renderExistingDocs(employees.find(e => e.id === empId));
+    toast('Document removed');
+  } catch (err) { toast(err.message, true); }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 async function submitEmployee(e) {
   e.preventDefault();
   const id = document.getElementById('empId').value;
+
+  const aadhaar = document.getElementById('empAadhaar').value.trim();
+  if (aadhaar && !/^\d{12}$/.test(aadhaar)) {
+    toast('Aadhaar number must be exactly 12 digits', true);
+    return;
+  }
+  const pan = document.getElementById('empPan').value.trim().toUpperCase();
+  if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+    toast('PAN number must be in the format AAAAA9999A', true);
+    return;
+  }
+  const bankAccount = document.getElementById('empBankAccount').value.trim();
+  if (bankAccount && !/^\d{6,20}$/.test(bankAccount)) {
+    toast('Bank account number must be 6-20 digits', true);
+    return;
+  }
+  const ifsc = document.getElementById('empBankIfsc').value.trim().toUpperCase();
+  if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+    toast('IFSC code must be in the format AAAA0999999', true);
+    return;
+  }
+
   const payload = {
     name: document.getElementById('empName').value,
     email: document.getElementById('empEmail').value,
@@ -327,29 +414,44 @@ async function submitEmployee(e) {
     emergencyContactName: document.getElementById('empEmergencyName').value,
     emergencyContactRelation: document.getElementById('empEmergencyRelation').value,
     emergencyContactPhone: document.getElementById('empEmergencyPhone').value,
-    aadhaarNumber: document.getElementById('empAadhaar').value,
-    panNumber: document.getElementById('empPan').value,
+    aadhaarNumber: aadhaar,
+    panNumber: pan,
     passportNumber: document.getElementById('empPassport').value,
     bankName: document.getElementById('empBankName').value,
-    bankAccountNumber: document.getElementById('empBankAccount').value,
-    bankIFSC: document.getElementById('empBankIfsc').value
+    bankAccountNumber: bankAccount,
+    bankIFSC: ifsc
   };
   if (!id) {
     payload.createLogin = document.getElementById('empCreateLogin').checked;
     payload.password = document.getElementById('empLoginPassword').value;
     payload.role = document.getElementById('empLoginRole').value;
   }
+
+  const photoFile = document.getElementById('empPhotoFile').files[0];
+  if (photoFile) {
+    try { payload.profilePhoto = await readFileAsDataUrl(photoFile); }
+    catch (err) { toast('Could not read the selected photo', true); return; }
+  }
+
   try {
+    let savedEmployeeId = id ? Number(id) : null;
     if (id) {
       await api(`/employees/${id}`, { method: 'PUT', body: payload });
-      toast('Employee saved');
-      closeModal('empModal');
     } else {
       const { credentials, employee } = await api('/employees', { method: 'POST', body: payload });
-      toast('Employee saved');
-      closeModal('empModal');
+      savedEmployeeId = employee.id;
       if (credentials) showCredentials(credentials, employee);
     }
+
+    // Upload any newly selected documents, one at a time.
+    const docFiles = Array.from(document.getElementById('empDocFiles').files || []);
+    for (const file of docFiles) {
+      const dataUrl = await readFileAsDataUrl(file);
+      await api(`/employees/${savedEmployeeId}/documents`, { method: 'POST', body: { name: file.name, dataUrl } });
+    }
+
+    toast('Employee saved');
+    closeModal('empModal');
     renderEmployees();
   } catch (err) { toast(err.message, true); }
 }

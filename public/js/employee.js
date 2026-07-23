@@ -57,6 +57,7 @@ async function renderProfile() {
       <h1>My profile</h1>
       <div class="subtitle">Your employment record on file.</div>
       <div class="panel" style="margin-bottom:20px;"><div class="panel-body">
+        ${employee.profilePhoto ? `<img src="${employee.profilePhoto}" style="width:72px; height:72px; border-radius:50%; object-fit:cover; margin-bottom:16px; border:1px solid var(--line);">` : ''}
         <table>
           ${row('Employee ID', `<span class="timestamp">${escapeHtml(employee.employeeCode || '—')}</span>`)}
           ${row('Full name', escapeHtml(employee.name))}
@@ -98,12 +99,22 @@ async function renderProfile() {
       </div></div>
 
       <div class="filetab">Bank details</div>
-      <div class="panel" style="border-top-left-radius:0;"><div class="panel-body">
+      <div class="panel" style="border-top-left-radius:0; margin-bottom:20px;"><div class="panel-body">
         <table>
           ${row('Bank name', escapeHtml(employee.bankName || '—'))}
           ${row('Account number', escapeHtml(employee.bankAccountNumber || '—'))}
           ${row('IFSC code', escapeHtml(employee.bankIFSC || '—'))}
         </table>
+      </div></div>
+
+      <div class="filetab">Documents</div>
+      <div class="panel" style="border-top-left-radius:0;"><div class="panel-body">
+        ${(employee.documents || []).length === 0 ? emptyState('No documents uploaded yet') : (employee.documents || []).map(d => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;">
+            <a href="${d.dataUrl}" download="${escapeHtml(d.name)}">${escapeHtml(d.name)}</a>
+            <span class="timestamp" style="font-size:11px;">${fmtDate(d.uploadedDate)}</span>
+          </div>
+        `).join('')}
       </div></div>
     `;
   } catch (err) {

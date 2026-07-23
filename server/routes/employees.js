@@ -27,10 +27,37 @@ const EXTENDED_PROFILE_FIELDS = [
   'bankAccountNumber', 'bankIFSC', 'bankName'
 ];
 
+// Returns an error message string if invalid, or null if OK / left blank.
+function validateIdFormats(body) {
+  if (body.aadhaarNumber !== undefined && body.aadhaarNumber !== '') {
+    if (!/^\d{12}$/.test(body.aadhaarNumber)) {
+      return 'Aadhaar number must be exactly 12 digits';
+    }
+  }
+  if (body.panNumber !== undefined && body.panNumber !== '') {
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(body.panNumber).toUpperCase())) {
+      return 'PAN number must be in the format AAAAA9999A (5 letters, 4 digits, 1 letter)';
+    }
+  }
+  if (body.bankAccountNumber !== undefined && body.bankAccountNumber !== '') {
+    if (!/^\d{6,20}$/.test(body.bankAccountNumber)) {
+      return 'Bank account number must be 6–20 digits';
+    }
+  }
+  if (body.bankIFSC !== undefined && body.bankIFSC !== '') {
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(body.bankIFSC).toUpperCase())) {
+      return 'IFSC code must be in the format AAAA0999999 (4 letters, a 0, then 6 characters)';
+    }
+  }
+  return null;
+}
+
 function pickExtendedFields(body) {
   const picked = {};
   EXTENDED_PROFILE_FIELDS.forEach((field) => {
-    picked[field] = body[field] !== undefined ? String(body[field]) : '';
+    let value = body[field] !== undefined ? String(body[field]) : '';
+    if (field === 'panNumber' || field === 'bankIFSC') value = value.toUpperCase();
+    picked[field] = value;
   });
   return picked;
 }
@@ -72,6 +99,9 @@ router.post('/', requireAdmin, (req, res) => {
   if (!name || !email || !department || !position) {
     return res.status(400).json({ error: 'name, email, department and position are required' });
   }
+  const idFormatError = validateIdFormats(req.body);
+  if (idFormatError) return res.status(400).json({ error: idFormatError });
+
   const db = readDB();
 
   if (createLogin && db.users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
@@ -140,16 +170,52 @@ router.put('/:id', requireAdmin, (req, res) => {
   const db = readDB();
   const emp = db.employees.find(e => e.id === Number(req.params.id));
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
+
+  const idFormatError = validateIdFormats(req.body);
+  if (idFormatError) return res.status(400).json({ error: idFormatError });
+
   const body = { ...req.body };
+  delete body.documents; // documents are managed via their own endpoints, not overwritten wholesale here
   ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
     if (body[field] !== undefined) body[field] = Number(body[field]) || 0;
   });
   if (body.managerId !== undefined) {
     body.managerId = body.managerId === '' || body.managerId === null ? null : Number(body.managerId);
   }
+  if (body.panNumber !== undefined) body.panNumber = String(body.panNumber).toUpperCase();
+  if (body.bankIFSC !== undefined) body.bankIFSC = String(body.bankIFSC).toUpperCase();
   Object.assign(emp, body);
   writeDB(db);
   res.json({ employee: emp });
+});
+
+// Admin: upload/replace a document for an employee (base64 data URL)
+router.post('/:id/documents', requireAdmin, (req, res) => {
+  const { name, dataUrl } = req.body;
+  if (!name || !dataUrl) return res.status(400).json({ error: 'name and dataUrl are required' });
+  const db = readDB();
+  const emp = db.employees.find(e => e.id === Number(req.params.id));
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  if (!Array.isArray(emp.documents)) emp.documents = [];
+  const doc = {
+    id: nextId(db, 'employeeDocument'),
+    name,
+    dataUrl,
+    uploadedDate: new Date().toISOString()
+  };
+  emp.documents.push(doc);
+  writeDB(db);
+  res.status(201).json({ document: doc });
+});
+
+// Admin: remove a document from an employee
+router.delete('/:id/documents/:docId', requireAdmin, (req, res) => {
+  const db = readDB();
+  const emp = db.employees.find(e => e.id === Number(req.params.id));
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  emp.documents = (emp.documents || []).filter(d => d.id !== Number(req.params.docId));
+  writeDB(db);
+  res.json({ ok: true });
 });
 
 // Admin: remove employee (also removes their login account, if any)
