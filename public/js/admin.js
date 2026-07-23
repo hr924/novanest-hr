@@ -210,11 +210,12 @@ async function renderApplications() {
       <div class="panel-header"><h2>All applications</h2></div>
       <div class="panel-body">
         ${applications.length === 0 ? emptyState('No applications yet') : renderTable(
-          ['Candidate', 'Role', 'Contact', 'Applied', 'Status', ''],
+          ['Candidate', 'Role', 'Contact', 'Resume', 'Applied', 'Status', ''],
           applications.map(a => [
             escapeHtml(a.candidateName),
             escapeHtml(a.jobTitle),
             `${escapeHtml(a.email)}${a.phone ? '<br><span class="muted">' + escapeHtml(a.phone) + '</span>' : ''}`,
+            a.resumeDataUrl ? `<a href="${a.resumeDataUrl}" download="${escapeHtml(a.resumeName || 'resume')}">${escapeHtml(a.resumeName || 'Download')}</a>` : '<span class="muted">—</span>',
             fmtDate(a.appliedDate),
             pill(a.status),
             `<span class="section-actions">

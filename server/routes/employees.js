@@ -11,6 +11,9 @@ function genPassword() {
 
 function genEmployeeCode(db) {
   if (typeof db.nextId.employeeCode !== 'number') db.nextId.employeeCode = 1001;
+  // If there are no employees left at all (e.g. everyone was deleted), start
+  // fresh from NN001001 instead of continuing to climb forever.
+  if (db.employees.length === 0) db.nextId.employeeCode = 1001;
   const usedCodes = new Set(db.employees.map(e => e.employeeCode).filter(Boolean));
   let code;
   do {

@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Public: candidate submits an application
 router.post('/', (req, res) => {
-  const { jobId, candidateName, email, phone, coverLetter } = req.body;
+  const { jobId, candidateName, email, phone, coverLetter, resumeName, resumeDataUrl } = req.body;
   if (!jobId || !candidateName || !email) {
     return res.status(400).json({ error: 'jobId, candidateName and email are required' });
   }
@@ -22,6 +22,8 @@ router.post('/', (req, res) => {
     email,
     phone: phone || '',
     coverLetter: coverLetter || '',
+    resumeName: resumeName || '',
+    resumeDataUrl: resumeDataUrl || '',
     status: 'applied', // applied -> screening -> interview -> offer -> hired / rejected
     appliedDate: new Date().toISOString()
   };

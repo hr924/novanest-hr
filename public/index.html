@@ -6,7 +6,7 @@
 <title>Careers · Novanest HR</title>
 <link rel="stylesheet" href="css/styles.css">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#1F5FA6">
+<meta name="theme-color" content="#5856D6">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,7 +16,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand">Novanest<span class="tag">HR</span></div>
+    <div class="brand"><img src="img/logo.png" alt="Novanest" class="brand-logo"> Novanest<span class="tag">HR</span></div>
     <nav>
       <a href="index.html">Careers</a>
       <a href="login.html">Sign in</a>
@@ -55,6 +55,8 @@
         <input id="phone">
         <label for="coverLetter">Why you'd be a good fit</label>
         <textarea id="coverLetter" placeholder="A few sentences about your background..."></textarea>
+        <label for="resumeFile">Resume</label>
+        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx">
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit application</button>
       </form>
     </div>
@@ -106,19 +108,35 @@ function closeModal() {
   document.getElementById('applyForm').reset();
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 document.getElementById('applyForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    await api('/applications', {
-      method: 'POST',
-      body: {
-        jobId: Number(document.getElementById('applyJobId').value),
-        candidateName: document.getElementById('candidateName').value,
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value,
-        coverLetter: document.getElementById('coverLetter').value
+    const body = {
+      jobId: Number(document.getElementById('applyJobId').value),
+      candidateName: document.getElementById('candidateName').value,
+      email: document.getElementById('email').value,
+      phone: document.getElementById('phone').value,
+      coverLetter: document.getElementById('coverLetter').value
+    };
+    const resumeFile = document.getElementById('resumeFile').files[0];
+    if (resumeFile) {
+      if (resumeFile.size > 5 * 1024 * 1024) {
+        toast('Resume file is too large — please keep it under 5MB', true);
+        return;
       }
-    });
+      body.resumeName = resumeFile.name;
+      body.resumeDataUrl = await readFileAsDataUrl(resumeFile);
+    }
+    await api('/applications', { method: 'POST', body });
     toast('Application submitted — thank you!');
     closeModal();
   } catch (err) {
