@@ -1,6 +1,6 @@
 {
-  "name": "Novanest HR",
-  "short_name": "Novanest HR",
+  "name": "Novanest HRM",
+  "short_name": "Novanest HRM",
   "description": "Novanest HR — recruitment, employee records, leave and attendance.",
   "start_url": "/login.html",
   "scope": "/",
