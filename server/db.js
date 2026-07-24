@@ -11,6 +11,7 @@ function randomPassword() {
 
 function defaultData() {
   const adminEmail = process.env.ADMIN_EMAIL || 'hr@novanest.com';
+  const adminName = process.env.ADMIN_NAME || 'Admin';
   let adminPasswordPlain = process.env.ADMIN_PASSWORD;
   if (!adminPasswordPlain) {
     adminPasswordPlain = randomPassword();
@@ -24,18 +25,16 @@ function defaultData() {
     console.log('----------------------------------------------------------------');
   }
   const adminPasswordHash = bcrypt.hashSync(adminPasswordPlain, 8);
-  const empPasswordHash = bcrypt.hashSync('Novanest#Emp2026', 8);
   return {
     nextId: {
-      users: 3, jobs: 3, applications: 1, employees: 2, leave: 1, attendance: 1,
+      users: 2, jobs: 3, applications: 1, employees: 1, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
       tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
-      employeeCode: 1002,
+      employeeCode: 1001,
       employeeDocument: 1
     },
     users: [
-      { id: 1, name: 'Alex Morgan', email: adminEmail, password: adminPasswordHash, role: 'admin' },
-      { id: 2, name: 'Jordan Lee', email: 'jordan.lee@novanest.com', password: empPasswordHash, role: 'employee', employeeId: 1 }
+      { id: 1, name: adminName, email: adminEmail, password: adminPasswordHash, role: 'admin' }
     ],
     jobs: [
       {
@@ -60,38 +59,7 @@ function defaultData() {
       }
     ],
     applications: [],
-    employees: [
-      {
-        id: 1,
-        employeeCode: 'NN001001',
-        name: 'Jordan Lee',
-        email: 'jordan.lee@novanest.com',
-        department: 'Engineering',
-        position: 'Frontend Engineer',
-        joinDate: '2024-03-01',
-        status: 'active',
-        phone: '555-0100',
-        managerId: null,
-        basicSalary: 0,
-        allowances: 0,
-        deductions: 0,
-        dob: '',
-        gender: '',
-        bloodGroup: '',
-        address: '',
-        emergencyContactName: '',
-        emergencyContactRelation: '',
-        emergencyContactPhone: '',
-        aadhaarNumber: '',
-        panNumber: '',
-        passportNumber: '',
-        bankAccountNumber: '',
-        bankIFSC: '',
-        bankName: '',
-        profilePhoto: '',
-        documents: []
-      }
-    ],
+    employees: [],
     leave: [],
     attendance: [],
     payslips: [],

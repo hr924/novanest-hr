@@ -25,7 +25,10 @@
 
 <div class="dash">
   <div class="sidebar">
-    <div class="who"><strong id="whoName">—</strong><span id="whoRole">Employee</span></div>
+    <div class="who">
+      <strong id="whoName">—</strong><span id="whoRole">Employee</span>
+      <div><a href="#" id="editAccountLink" style="font-size:11.5px; color: var(--ledger);">Edit name / password</a></div>
+    </div>
     <div class="sidebar-link active" data-view="profile">My profile</div>
     <div class="sidebar-link" data-view="attendance">Attendance</div>
     <div class="sidebar-link" data-view="leave">Leave requests</div>
@@ -61,6 +64,22 @@
         <label for="leaveReason">Reason (optional)</label>
         <textarea id="leaveReason"></textarea>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit request</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit my account modal -->
+<div class="modal-backdrop" id="myAccountModal">
+  <div class="modal">
+    <div class="modal-head"><h3>Edit your account</h3><button class="modal-close" onclick="closeModal('myAccountModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="myAccountForm">
+        <label for="myAccountName">Display name</label>
+        <input id="myAccountName" required>
+        <label for="myAccountPassword">New password (leave blank to keep current)</label>
+        <input id="myAccountPassword" placeholder="Leave blank to keep current password">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save changes</button>
       </form>
     </div>
   </div>

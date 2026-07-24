@@ -17,6 +17,28 @@ async function init() {
     await api('/auth/logout', { method: 'POST' });
     window.location.href = '/login.html';
   });
+  document.getElementById('editAccountLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('myAccountForm').reset();
+    document.getElementById('myAccountName').value = CURRENT_USER.name;
+    document.getElementById('myAccountModal').classList.add('show');
+  });
+  document.getElementById('myAccountForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const { user } = await api('/auth/me', {
+        method: 'PUT',
+        body: {
+          name: document.getElementById('myAccountName').value,
+          newPassword: document.getElementById('myAccountPassword').value
+        }
+      });
+      CURRENT_USER = user;
+      document.getElementById('whoName').textContent = user.name;
+      toast('Account updated');
+      closeModal('myAccountModal');
+    } catch (err) { toast(err.message, true); }
+  });
   document.getElementById('leaveForm').addEventListener('submit', submitLeave);
   document.getElementById('caseForm').addEventListener('submit', submitCase);
 
