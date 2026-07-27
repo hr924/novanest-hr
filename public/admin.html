@@ -88,9 +88,57 @@
         <label for="empEmail">Email</label>
         <input id="empEmail" type="email" required>
         <label for="empDept">Department</label>
-        <input id="empDept" required>
-        <label for="empPosition">Position</label>
-        <input id="empPosition" required>
+        <select id="empDept" required>
+          <option value="">Select department...</option>
+          <option>SAP</option>
+          <option>SAP MDG</option>
+          <option>SAP MM</option>
+          <option>Software Development</option>
+          <option>Quality Assurance</option>
+          <option>DevOps / IT Support</option>
+          <option>HR</option>
+          <option>Recruitment / Talent Acquisition</option>
+          <option>Sales</option>
+          <option>Business Development</option>
+          <option>Marketing</option>
+          <option>Finance & Accounts</option>
+          <option>Operations</option>
+          <option>Administration</option>
+          <option>Training</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input id="empDeptOther" placeholder="Enter department name" style="display:none;">
+
+        <label for="empPosition">Designation</label>
+        <select id="empPosition" required>
+          <option value="">Select designation...</option>
+          <option>SAP Consultant</option>
+          <option>SAP MDG Consultant</option>
+          <option>SAP MM Consultant</option>
+          <option>Software Engineer</option>
+          <option>Senior Software Engineer</option>
+          <option>Technical Lead</option>
+          <option>Team Lead</option>
+          <option>Project Manager</option>
+          <option>Business Analyst</option>
+          <option>QA Engineer</option>
+          <option>DevOps Engineer</option>
+          <option>System Administrator</option>
+          <option>HR Executive</option>
+          <option>HR Manager</option>
+          <option>HR Generalist</option>
+          <option>Recruiter</option>
+          <option>Talent Acquisition Specialist</option>
+          <option>Sales Executive</option>
+          <option>Business Development Manager</option>
+          <option>Accounts Executive</option>
+          <option>Operations Manager</option>
+          <option>Trainer</option>
+          <option>Trainee</option>
+          <option>Intern</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input id="empPositionOther" placeholder="Enter designation" style="display:none;">
         <label for="empPhone">Phone</label>
         <input id="empPhone">
         <label for="empJoinDate">Joining date</label>
@@ -99,13 +147,29 @@
         <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <label for="empManager">Manager</label>
         <select id="empManager"><option value="">No manager assigned</option></select>
+
+        <label for="empUan">UAN (Universal Account Number)</label>
+        <input id="empUan" maxlength="12" inputmode="numeric" placeholder="12 digits">
+        <label for="empAnnualCTC">Annual CTC</label>
+        <input id="empAnnualCTC" type="number" min="0" step="0.01" value="0">
+        <label for="empMonthlyCTC">Monthly CTC</label>
+        <input id="empMonthlyCTC" type="number" min="0" step="0.01" value="0">
+        <label for="empHra">HRA (monthly)</label>
+        <input id="empHra" type="number" min="0" step="0.01" value="0">
+        <label for="empEmployerPF">Employer PF (monthly)</label>
+        <input id="empEmployerPF" type="number" min="0" step="0.01" value="0">
+        <label for="empEmployeePF">Employee PF (monthly)</label>
+        <input id="empEmployeePF" type="number" min="0" step="0.01" value="0">
+        <label for="empProfessionalTax">Professional tax (monthly)</label>
+        <input id="empProfessionalTax" type="number" min="0" step="0.01" value="0">
+
         <label for="empBasicSalary">Basic salary (monthly)</label>
         <input id="empBasicSalary" type="number" min="0" step="0.01" value="0">
         <label for="empAllowances">Allowances (monthly)</label>
         <input id="empAllowances" type="number" min="0" step="0.01" value="0">
         <label for="empDeductions">Standard deductions (monthly)</label>
         <input id="empDeductions" type="number" min="0" step="0.01" value="0">
-        <div class="hint-box" style="margin-top:-6px;">These salary figures are used to auto-generate payslips each month.</div>
+        <div class="hint-box" style="margin-top:-6px;">Basic salary, allowances and deductions are used to auto-generate payslips each month. The other fields above are for record-keeping (CTC breakdown, statutory contributions).</div>
 
         <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Personal information</div>
         <label for="empDob">Date of birth</label>

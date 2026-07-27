@@ -86,7 +86,7 @@ async function renderProfile() {
           ${row('Email', escapeHtml(employee.email))}
           ${row('Phone', escapeHtml(employee.phone || '—'))}
           ${row('Department', escapeHtml(employee.department))}
-          ${row('Position', escapeHtml(employee.position))}
+          ${row('Designation', escapeHtml(employee.position))}
           ${row('Joined', fmtDate(employee.joinDate))}
           ${row('Status', pill(employee.status))}
         </table>

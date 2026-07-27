@@ -27,8 +27,10 @@ const EXTENDED_PROFILE_FIELDS = [
   'dob', 'gender', 'bloodGroup', 'address',
   'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
   'aadhaarNumber', 'panNumber', 'passportNumber',
-  'bankAccountNumber', 'bankIFSC', 'bankName'
+  'bankAccountNumber', 'bankIFSC', 'bankName', 'uan'
 ];
+
+const PAYROLL_NUMERIC_FIELDS = ['basicSalary', 'allowances', 'deductions', 'annualCTC', 'monthlyCTC', 'hra', 'employerPF', 'employeePF', 'professionalTax'];
 
 // Returns an error message string if invalid, or null if OK / left blank.
 function validateIdFormats(body) {
@@ -50,6 +52,11 @@ function validateIdFormats(body) {
   if (body.bankIFSC !== undefined && body.bankIFSC !== '') {
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(String(body.bankIFSC).toUpperCase())) {
       return 'IFSC code must be in the format AAAA0999999 (4 letters, a 0, then 6 characters)';
+    }
+  }
+  if (body.uan !== undefined && body.uan !== '') {
+    if (!/^\d{12}$/.test(body.uan)) {
+      return 'UAN must be exactly 12 digits';
     }
   }
   return null;
@@ -119,9 +126,7 @@ router.post('/', requireAdmin, (req, res) => {
     status: 'active',
     phone: phone || '',
     managerId: managerId ? Number(managerId) : null,
-    basicSalary: Number(basicSalary) || 0,
-    allowances: Number(allowances) || 0,
-    deductions: Number(deductions) || 0,
+    ...Object.fromEntries(PAYROLL_NUMERIC_FIELDS.map(f => [f, Number(req.body[f]) || 0])),
     ...pickExtendedFields(req.body)
   };
   db.employees.push(employee);
@@ -179,7 +184,7 @@ router.put('/:id', requireAdmin, (req, res) => {
 
   const body = { ...req.body };
   delete body.documents; // documents are managed via their own endpoints, not overwritten wholesale here
-  ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
+  PAYROLL_NUMERIC_FIELDS.forEach((field) => {
     if (body[field] !== undefined) body[field] = Number(body[field]) || 0;
   });
   if (body.managerId !== undefined) {

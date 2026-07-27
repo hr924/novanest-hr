@@ -56,6 +56,16 @@ async function init() {
   document.getElementById('empCreateLogin').addEventListener('change', (e) => {
     document.getElementById('loginPasswordWrap').style.display = e.target.checked ? 'block' : 'none';
   });
+  document.getElementById('empDept').addEventListener('change', (e) => {
+    document.getElementById('empDeptOther').style.display = e.target.value === '__other__' ? 'block' : 'none';
+  });
+  document.getElementById('empPosition').addEventListener('change', (e) => {
+    document.getElementById('empPositionOther').style.display = e.target.value === '__other__' ? 'block' : 'none';
+  });
+  document.getElementById('empAnnualCTC').addEventListener('input', (e) => {
+    const annual = Number(e.target.value) || 0;
+    document.getElementById('empMonthlyCTC').value = annual ? (annual / 12).toFixed(2) : 0;
+  });
   document.getElementById('empPhotoFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -280,7 +290,7 @@ async function renderEmployees() {
       <div class="panel-header"><h2>Roster</h2><button class="btn btn-primary btn-sm" onclick="openEmpModal()">+ Add employee</button></div>
       <div class="panel-body">
         ${employees.length === 0 ? emptyState('No employees yet') : renderTable(
-          ['Employee ID', 'Name', 'Department', 'Position', 'Manager', 'Status', 'Login', ''],
+          ['Employee ID', 'Name', 'Department', 'Designation', 'Manager', 'Status', 'Login', ''],
           employees.map(e => [
             `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
             `<span style="display:flex; align-items:center; gap:10px;">
@@ -302,6 +312,25 @@ async function renderEmployees() {
   `;
 }
 
+function setSelectOrOther(selectId, otherId, value) {
+  const select = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  const options = Array.from(select.options).map(o => o.value);
+  if (value && options.includes(value)) {
+    select.value = value;
+    other.style.display = 'none';
+    other.value = '';
+  } else if (value) {
+    select.value = '__other__';
+    other.style.display = 'block';
+    other.value = value;
+  } else {
+    select.value = '';
+    other.style.display = 'none';
+    other.value = '';
+  }
+}
+
 function openEmpModal(id) {
   const form = document.getElementById('empForm');
   form.reset();
@@ -310,6 +339,8 @@ function openEmpModal(id) {
   document.getElementById('loginPasswordWrap').style.display = 'none';
   document.getElementById('loginFieldsWrap').style.display = 'block';
   document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('empDeptOther').style.display = 'none';
+  document.getElementById('empPositionOther').style.display = 'none';
 
   const managerSelect = document.getElementById('empManager');
   const managerOptions = CACHE.employees.filter(e => !id || e.id !== id);
@@ -321,12 +352,19 @@ function openEmpModal(id) {
     document.getElementById('empId').value = emp.id;
     document.getElementById('empName').value = emp.name;
     document.getElementById('empEmail').value = emp.email;
-    document.getElementById('empDept').value = emp.department;
-    document.getElementById('empPosition').value = emp.position;
+    setSelectOrOther('empDept', 'empDeptOther', emp.department);
+    setSelectOrOther('empPosition', 'empPositionOther', emp.position);
     document.getElementById('empPhone').value = emp.phone || '';
     document.getElementById('empJoinDate').value = emp.joinDate || '';
     document.getElementById('empStatus').value = emp.status;
     document.getElementById('empManager').value = emp.managerId || '';
+    document.getElementById('empUan').value = emp.uan || '';
+    document.getElementById('empAnnualCTC').value = emp.annualCTC || 0;
+    document.getElementById('empMonthlyCTC').value = emp.monthlyCTC || 0;
+    document.getElementById('empHra').value = emp.hra || 0;
+    document.getElementById('empEmployerPF').value = emp.employerPF || 0;
+    document.getElementById('empEmployeePF').value = emp.employeePF || 0;
+    document.getElementById('empProfessionalTax').value = emp.professionalTax || 0;
     document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
     document.getElementById('empAllowances').value = emp.allowances || 0;
     document.getElementById('empDeductions').value = emp.deductions || 0;
@@ -417,16 +455,36 @@ async function submitEmployee(e) {
     toast('IFSC code must be in the format AAAA0999999', true);
     return;
   }
+  const uan = document.getElementById('empUan').value.trim();
+  if (uan && !/^\d{12}$/.test(uan)) {
+    toast('UAN must be exactly 12 digits', true);
+    return;
+  }
+
+  const deptSelect = document.getElementById('empDept').value;
+  const department = deptSelect === '__other__' ? document.getElementById('empDeptOther').value.trim() : deptSelect;
+  if (!department) { toast('Please select or enter a department', true); return; }
+
+  const positionSelect = document.getElementById('empPosition').value;
+  const position = positionSelect === '__other__' ? document.getElementById('empPositionOther').value.trim() : positionSelect;
+  if (!position) { toast('Please select or enter a designation', true); return; }
 
   const payload = {
     name: document.getElementById('empName').value,
     email: document.getElementById('empEmail').value,
-    department: document.getElementById('empDept').value,
-    position: document.getElementById('empPosition').value,
+    department,
+    position,
     phone: document.getElementById('empPhone').value,
     joinDate: document.getElementById('empJoinDate').value,
     status: document.getElementById('empStatus').value,
     managerId: document.getElementById('empManager').value,
+    uan,
+    annualCTC: document.getElementById('empAnnualCTC').value,
+    monthlyCTC: document.getElementById('empMonthlyCTC').value,
+    hra: document.getElementById('empHra').value,
+    employerPF: document.getElementById('empEmployerPF').value,
+    employeePF: document.getElementById('empEmployeePF').value,
+    professionalTax: document.getElementById('empProfessionalTax').value,
     basicSalary: document.getElementById('empBasicSalary').value,
     allowances: document.getElementById('empAllowances').value,
     deductions: document.getElementById('empDeductions').value,

@@ -144,7 +144,7 @@ function migrate(data) {
 
     data.employees.forEach((emp) => {
       // Coerce (not reset) any salary figures that were saved as strings, so real values aren't lost.
-      ['basicSalary', 'allowances', 'deductions'].forEach((field) => {
+      ['basicSalary', 'allowances', 'deductions', 'annualCTC', 'monthlyCTC', 'hra', 'employerPF', 'employeePF', 'professionalTax'].forEach((field) => {
         if (typeof emp[field] !== 'number') {
           emp[field] = Number(emp[field]) || 0;
           changed = true;
@@ -155,7 +155,7 @@ function migrate(data) {
         'dob', 'gender', 'bloodGroup', 'address',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
         'aadhaarNumber', 'panNumber', 'passportNumber',
-        'bankAccountNumber', 'bankIFSC', 'bankName', 'profilePhoto'
+        'bankAccountNumber', 'bankIFSC', 'bankName', 'profilePhoto', 'uan'
       ].forEach((field) => {
         if (typeof emp[field] !== 'string') { emp[field] = ''; changed = true; }
       });
