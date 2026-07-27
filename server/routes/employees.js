@@ -105,7 +105,7 @@ router.get('/:id', requireAdmin, (req, res) => {
 
 // Admin: add employee directly, optionally creating a login account too
 router.post('/', requireAdmin, (req, res) => {
-  const { name, email, department, position, joinDate, phone, createLogin, password, basicSalary, allowances, deductions, managerId, role } = req.body;
+  const { name, email, department, position, joinDate, phone, createLogin, password, basicSalary, allowances, deductions, managerId, role, inactiveReason } = req.body;
   if (!name || !email || !department || !position) {
     return res.status(400).json({ error: 'name, email, department and position are required' });
   }
@@ -124,6 +124,7 @@ router.post('/', requireAdmin, (req, res) => {
     name, email, department, position,
     joinDate: joinDate || new Date().toISOString().slice(0, 10),
     status: 'active',
+    inactiveReason: inactiveReason || '',
     phone: phone || '',
     managerId: managerId ? Number(managerId) : null,
     ...Object.fromEntries(PAYROLL_NUMERIC_FIELDS.map(f => [f, Number(req.body[f]) || 0])),

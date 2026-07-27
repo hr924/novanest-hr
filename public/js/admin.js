@@ -65,6 +65,17 @@ async function init() {
   document.getElementById('empAnnualCTC').addEventListener('input', (e) => {
     const annual = Number(e.target.value) || 0;
     document.getElementById('empMonthlyCTC').value = annual ? (annual / 12).toFixed(2) : 0;
+    recalcSalaryFields();
+  });
+  document.getElementById('empMonthlyCTC').addEventListener('input', recalcSalaryFields);
+  document.getElementById('empEmployerPF').addEventListener('input', recalcSalaryFields);
+  document.getElementById('empEmployeePF').addEventListener('input', recalcSalaryFields);
+  document.getElementById('empProfessionalTax').addEventListener('input', recalcSalaryFields);
+  document.getElementById('empStatus').addEventListener('change', (e) => {
+    document.getElementById('empInactiveReasonWrap').style.display = e.target.value === 'inactive' ? 'block' : 'none';
+  });
+  document.getElementById('empInactiveReason').addEventListener('change', (e) => {
+    document.getElementById('empInactiveReasonOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
   });
   document.getElementById('empPhotoFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -280,36 +291,119 @@ async function hireApplicant(id) {
 }
 
 /* ---------------- Employees ---------------- */
+const EMP_COLUMN_DEFS = [
+  { key: 'employeeId', label: 'Employee ID' },
+  { key: 'name', label: 'Name' },
+  { key: 'manager', label: 'Manager' }
+];
+
+function getEmpVisibleColumns() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('empVisibleColumns'));
+    if (saved && typeof saved === 'object') return saved;
+  } catch (e) {}
+  return { employeeId: true, name: true, manager: true };
+}
+
+function setEmpVisibleColumns(cols) {
+  localStorage.setItem('empVisibleColumns', JSON.stringify(cols));
+}
+
+function toggleEmpColumnDropdown() {
+  const dd = document.getElementById('empColumnDropdown');
+  dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+}
+
+function onEmpColumnToggle(key, checked) {
+  const cols = getEmpVisibleColumns();
+  cols[key] = checked;
+  setEmpVisibleColumns(cols);
+  renderEmployees();
+}
+
 async function renderEmployees() {
   const { employees } = await api('/employees');
   CACHE.employees = employees;
+  const visibleCols = getEmpVisibleColumns();
+
+  const allHeaders = [
+    { key: 'employeeId', html: 'Employee ID' },
+    { key: 'name', html: 'Name' },
+    { key: 'department', html: 'Department' },
+    { key: 'position', html: 'Designation' },
+    { key: 'manager', html: 'Manager' },
+    { key: 'status', html: 'Status' },
+    { key: 'login', html: 'Login' },
+    { key: 'actions', html: '' }
+  ];
+  const shownHeaders = allHeaders.filter(h => visibleCols[h.key] !== false);
+
   document.getElementById('main').innerHTML = `
     <h1>Employees</h1>
     <div class="subtitle">Manage the current workforce roster.</div>
     <div class="panel">
-      <div class="panel-header"><h2>Roster</h2><button class="btn btn-primary btn-sm" onclick="openEmpModal()">+ Add employee</button></div>
+      <div class="panel-header">
+        <h2>Roster</h2>
+        <span style="display:flex; gap:8px; position:relative;">
+          <div style="position:relative;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEmpColumnDropdown()">Columns ▾</button>
+            <div id="empColumnDropdown" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:var(--panel-bg, #fff); border:1px solid var(--line); border-radius:6px; padding:10px 12px; z-index:20; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.12);">
+              ${EMP_COLUMN_DEFS.map(c => `
+                <label style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:13px; cursor:pointer;">
+                  <input type="checkbox" ${visibleCols[c.key] !== false ? 'checked' : ''} onchange="onEmpColumnToggle('${c.key}', this.checked)">
+                  ${c.label}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openEmpModal()">+ Add employee</button>
+        </span>
+      </div>
       <div class="panel-body">
         ${employees.length === 0 ? emptyState('No employees yet') : renderTable(
-          ['Employee ID', 'Name', 'Department', 'Designation', 'Manager', 'Status', 'Login', ''],
-          employees.map(e => [
-            `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
-            `<span style="display:flex; align-items:center; gap:10px;">
-              ${e.profilePhoto ? `<img src="${e.profilePhoto}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">` : `<span style="width:32px; height:32px; border-radius:50%; background:var(--tab-bg); display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:var(--ink-soft);">${escapeHtml((e.name || '?').charAt(0))}</span>`}
-              <span>${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span></span>
-            </span>`,
-            escapeHtml(e.department), escapeHtml(e.position),
-            e.managerName ? escapeHtml(e.managerName) : '<span class="muted">—</span>',
-            pill(e.status),
-            e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
-            `<span class="section-actions">
-              <button class="btn btn-ghost btn-sm" onclick="openEmpModal(${e.id})">Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Remove</button>
-            </span>`
-          ])
+          shownHeaders.map(h => h.html),
+          employees.map(e => {
+            const row = {
+              employeeId: `<span class="timestamp">${escapeHtml(e.employeeCode || '—')}</span>`,
+              name: `<span style="display:flex; align-items:center; gap:10px;">
+                ${e.profilePhoto ? `<img src="${e.profilePhoto}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">` : `<span style="width:32px; height:32px; border-radius:50%; background:var(--tab-bg); display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:var(--ink-soft);">${escapeHtml((e.name || '?').charAt(0))}</span>`}
+                <span>${escapeHtml(e.name)}<br><span class="muted">${escapeHtml(e.email)}</span></span>
+              </span>`,
+              department: escapeHtml(e.department),
+              position: escapeHtml(e.position),
+              manager: e.managerName ? escapeHtml(e.managerName) : '<span class="muted">—</span>',
+              status: pill(e.status),
+              login: e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
+              actions: `<span class="section-actions">
+                <button class="btn btn-ghost btn-sm" onclick="openEmpModal(${e.id})">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Remove</button>
+              </span>`
+            };
+            return shownHeaders.map(h => row[h.key]);
+          })
         )}
       </div>
     </div>
   `;
+}
+
+function recalcSalaryFields() {
+  const monthlyCTC = Number(document.getElementById('empMonthlyCTC').value) || 0;
+  const basic = monthlyCTC / 2;
+  const hra = basic / 2;
+  const flexibleAllowance = hra;
+  const employerPF = Number(document.getElementById('empEmployerPF').value) || 0;
+  const employeePF = Number(document.getElementById('empEmployeePF').value) || 0;
+  const provisionTax = Number(document.getElementById('empProfessionalTax').value) || 0;
+
+  const gross = basic + hra + flexibleAllowance;
+  const totalDeductions = employeePF + employerPF + provisionTax;
+  const netPay = gross - totalDeductions;
+
+  document.getElementById('empBasicSalary').value = basic.toFixed(2);
+  document.getElementById('empHra').value = hra.toFixed(2);
+  document.getElementById('empAllowances').value = flexibleAllowance.toFixed(2);
+  document.getElementById('empDeductions').value = netPay.toFixed(2);
 }
 
 function setSelectOrOther(selectId, otherId, value) {
@@ -341,6 +435,10 @@ function openEmpModal(id) {
   document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('empDeptOther').style.display = 'none';
   document.getElementById('empPositionOther').style.display = 'none';
+  document.getElementById('empInactiveReasonWrap').style.display = 'none';
+  document.getElementById('empInactiveReason').value = '';
+  document.getElementById('empInactiveReasonOther').style.display = 'none';
+  document.getElementById('empInactiveReasonOther').value = '';
 
   const managerSelect = document.getElementById('empManager');
   const managerOptions = CACHE.employees.filter(e => !id || e.id !== id);
@@ -357,6 +455,8 @@ function openEmpModal(id) {
     document.getElementById('empPhone').value = emp.phone || '';
     document.getElementById('empJoinDate').value = emp.joinDate || '';
     document.getElementById('empStatus').value = emp.status;
+    document.getElementById('empInactiveReasonWrap').style.display = emp.status === 'inactive' ? 'block' : 'none';
+    setSelectOrOther('empInactiveReason', 'empInactiveReasonOther', emp.inactiveReason || '');
     document.getElementById('empManager').value = emp.managerId || '';
     document.getElementById('empUan').value = emp.uan || '';
     document.getElementById('empAnnualCTC').value = emp.annualCTC || 0;
@@ -365,9 +465,7 @@ function openEmpModal(id) {
     document.getElementById('empEmployerPF').value = emp.employerPF || 0;
     document.getElementById('empEmployeePF').value = emp.employeePF || 0;
     document.getElementById('empProfessionalTax').value = emp.professionalTax || 0;
-    document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
-    document.getElementById('empAllowances').value = emp.allowances || 0;
-    document.getElementById('empDeductions').value = emp.deductions || 0;
+    recalcSalaryFields();
     document.getElementById('empDob').value = emp.dob || '';
     document.getElementById('empGender').value = emp.gender || '';
     document.getElementById('empBloodGroup').value = emp.bloodGroup || '';
@@ -477,6 +575,11 @@ async function submitEmployee(e) {
     phone: document.getElementById('empPhone').value,
     joinDate: document.getElementById('empJoinDate').value,
     status: document.getElementById('empStatus').value,
+    inactiveReason: document.getElementById('empStatus').value === 'inactive'
+      ? (document.getElementById('empInactiveReason').value === 'Other'
+          ? document.getElementById('empInactiveReasonOther').value.trim()
+          : document.getElementById('empInactiveReason').value)
+      : '',
     managerId: document.getElementById('empManager').value,
     uan,
     annualCTC: document.getElementById('empAnnualCTC').value,

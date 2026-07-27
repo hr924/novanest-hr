@@ -145,6 +145,16 @@
         <input id="empJoinDate" type="date" required>
         <label for="empStatus">Status</label>
         <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <div id="empInactiveReasonWrap" style="display:none;">
+          <label for="empInactiveReason">Inactive reason</label>
+          <select id="empInactiveReason">
+            <option value="">Select reason</option>
+            <option value="Shifted to another company">Shifted to another company</option>
+            <option value="BGV failed">BGV failed</option>
+            <option value="Other">Other</option>
+          </select>
+          <input id="empInactiveReasonOther" placeholder="Enter reason" style="display:none; margin-top:8px;">
+        </div>
         <label for="empManager">Manager</label>
         <select id="empManager"><option value="">No manager assigned</option></select>
 
@@ -154,22 +164,24 @@
         <input id="empAnnualCTC" type="number" min="0" step="0.01" value="0">
         <label for="empMonthlyCTC">Monthly CTC</label>
         <input id="empMonthlyCTC" type="number" min="0" step="0.01" value="0">
+
+        <label for="empBasicSalary">Basic salary (monthly)</label>
+        <input id="empBasicSalary" type="number" min="0" step="0.01" value="0" readonly>
         <label for="empHra">HRA (monthly)</label>
-        <input id="empHra" type="number" min="0" step="0.01" value="0">
+        <input id="empHra" type="number" min="0" step="0.01" value="0" readonly>
+        <label for="empAllowances">Flexible allowance (monthly)</label>
+        <input id="empAllowances" type="number" min="0" step="0.01" value="0" readonly>
+
         <label for="empEmployerPF">Employer PF (monthly)</label>
         <input id="empEmployerPF" type="number" min="0" step="0.01" value="0">
         <label for="empEmployeePF">Employee PF (monthly)</label>
         <input id="empEmployeePF" type="number" min="0" step="0.01" value="0">
-        <label for="empProfessionalTax">Professional tax (monthly)</label>
+        <label for="empProfessionalTax">Provision tax (monthly)</label>
         <input id="empProfessionalTax" type="number" min="0" step="0.01" value="0">
 
-        <label for="empBasicSalary">Basic salary (monthly)</label>
-        <input id="empBasicSalary" type="number" min="0" step="0.01" value="0">
-        <label for="empAllowances">Allowances (monthly)</label>
-        <input id="empAllowances" type="number" min="0" step="0.01" value="0">
-        <label for="empDeductions">Standard deductions (monthly)</label>
-        <input id="empDeductions" type="number" min="0" step="0.01" value="0">
-        <div class="hint-box" style="margin-top:-6px;">Basic salary, allowances and deductions are used to auto-generate payslips each month. The other fields above are for record-keeping (CTC breakdown, statutory contributions).</div>
+        <label for="empDeductions">Net pay (monthly)</label>
+        <input id="empDeductions" type="number" min="0" step="0.01" value="0" readonly>
+        <div class="hint-box" style="margin-top:-6px;">Basic salary = half of Monthly CTC. HRA = half of Basic salary. Flexible allowance = same as HRA. Net pay = (Basic + HRA + Flexible allowance) − (Employee PF + Employer PF + Provision tax). These are used to auto-generate payslips each month.</div>
 
         <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Personal information</div>
         <label for="empDob">Date of birth</label>
