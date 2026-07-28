@@ -241,8 +241,14 @@ async function renderPayslips() {
     <div class="subtitle">Your monthly payslip history.</div>
     <div class="panel"><div class="panel-body">
       ${payslips.length === 0 ? emptyState('No payslips on file yet') : renderTable(
-        ['Month', 'Basic', 'Allowances', 'Deductions', 'Net pay'],
-        payslips.map(p => [escapeHtml(p.month), fmtMoney(p.basic), fmtMoney(p.allowances), fmtMoney(p.deductions), `<strong>${fmtMoney(p.netPay)}</strong>`])
+        ['Month', 'Gross earnings', 'Gross deductions', 'Net pay', ''],
+        payslips.map(p => [
+          escapeHtml(p.month),
+          fmtMoney(p.grossEarnings ?? (Number(p.basic) + Number(p.allowances))),
+          fmtMoney(p.grossDeductions ?? p.deductions),
+          `<strong>${fmtMoney(p.netPay)}</strong>`,
+          `<button class="btn btn-ghost btn-sm" onclick="viewPayslip(${p.id})">View</button>`
+        ])
       )}
     </div></div>
   `;

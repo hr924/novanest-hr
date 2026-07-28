@@ -160,6 +160,10 @@
 
         <label for="empUan">UAN (Universal Account Number)</label>
         <input id="empUan" maxlength="12" inputmode="numeric" placeholder="12 digits">
+        <label for="empPfNumber">PF number</label>
+        <input id="empPfNumber" placeholder="e.g. APHYD3655951000">
+        <label for="empLocation">Work location</label>
+        <input id="empLocation" placeholder="e.g. Hyderabad">
         <label for="empAnnualCTC">Annual CTC</label>
         <input id="empAnnualCTC" type="number" min="0" step="0.01" value="0">
         <label for="empMonthlyCTC">Monthly CTC</label>
@@ -309,13 +313,38 @@
         <select id="payslipEmployee" required onchange="autoFillPayslipAmounts()"></select>
         <label for="payslipMonth">Month</label>
         <input id="payslipMonth" type="month" required>
-        <label for="payslipBasic">Basic pay</label>
-        <input id="payslipBasic" type="number" min="0" step="0.01" required>
-        <label for="payslipAllowances">Allowances</label>
-        <input id="payslipAllowances" type="number" min="0" step="0.01" value="0">
-        <label for="payslipDeductions">Deductions</label>
-        <input id="payslipDeductions" type="number" min="0" step="0.01" value="0">
-        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Generate payslip</button>
+
+        <label for="payslipLopDays">LOP days</label>
+        <input id="payslipLopDays" type="number" min="0" step="1" value="0" oninput="recalcPayslipTotals()">
+
+        <div style="border-top:1px solid var(--line); margin: 14px 0 10px; padding-top: 10px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Earnings</div>
+        <label for="payslipBasic">Basic</label>
+        <input id="payslipBasic" type="number" min="0" step="0.01" required oninput="recalcPayslipTotals()">
+        <label for="payslipHra">House rent allowance</label>
+        <input id="payslipHra" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipFlexAllowance">Flexible allowance</label>
+        <input id="payslipFlexAllowance" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipPersonalAllowance">Personal allowance</label>
+        <input id="payslipPersonalAllowance" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipOtherAllowance">Other allowance</label>
+        <input id="payslipOtherAllowance" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+
+        <div style="border-top:1px solid var(--line); margin: 14px 0 10px; padding-top: 10px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Deductions</div>
+        <label for="payslipEmployeePF">Provident fund</label>
+        <input id="payslipEmployeePF" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipProvisionTax">Provision tax</label>
+        <input id="payslipProvisionTax" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipOtherDeduction">Other deduction / LOA adjustments</label>
+        <input id="payslipOtherDeduction" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipNote">Note (optional, shown at bottom of payslip)</label>
+        <input id="payslipNote" placeholder="e.g. Arrears deduction is due to Loss of pay prior to this month.">
+
+        <div class="hint-box" style="margin-top:14px; display:flex; flex-direction:column; gap:4px;">
+          <span>Gross earnings: <strong id="payslipGrossEarnings">₹0.00</strong></span>
+          <span>Gross deductions: <strong id="payslipGrossDeductions">₹0.00</strong></span>
+          <span>Net pay: <strong id="payslipNetPay">₹0.00</strong></span>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:14px;">Generate payslip</button>
       </form>
     </div>
   </div>

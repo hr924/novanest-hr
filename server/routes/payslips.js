@@ -4,6 +4,58 @@ const { requireLogin, requireAdmin } = require('../middleware');
 
 const router = express.Router();
 
+function daysInMonth(monthStr) {
+  // monthStr is 'YYYY-MM'
+  const [y, m] = String(monthStr).split('-').map(Number);
+  if (!y || !m) return 30;
+  return new Date(y, m, 0).getDate();
+}
+
+function num(v) {
+  return Number(v) || 0;
+}
+
+// Snapshot the parts of an employee's profile that belong on a payslip, so
+// the payslip stays accurate even if the employee's profile changes later.
+function snapshotEmployee(employee) {
+  return {
+    employeeId: employee.id,
+    employeeCode: employee.employeeCode || '',
+    employeeName: employee.name,
+    department: employee.department || '',
+    designation: employee.position || '',
+    location: employee.location || '',
+    doj: employee.joinDate || '',
+    bankName: employee.bankName || '',
+    bankAccountNumber: employee.bankAccountNumber || '',
+    pfNumber: employee.pfNumber || '',
+    uan: employee.uan || ''
+  };
+}
+
+// Builds the earnings/deductions breakdown + totals given the raw inputs.
+function buildAmounts(input) {
+  const basic = num(input.basic);
+  const hra = num(input.hra);
+  const flexibleAllowance = num(input.flexibleAllowance);
+  const personalAllowance = num(input.personalAllowance);
+  const otherAllowance = num(input.otherAllowance);
+
+  const employeePF = num(input.employeePF);
+  const provisionTax = num(input.provisionTax);
+  const otherDeduction = num(input.otherDeduction);
+
+  const grossEarnings = basic + hra + flexibleAllowance + personalAllowance + otherAllowance;
+  const grossDeductions = employeePF + provisionTax + otherDeduction;
+  const netPay = grossEarnings - grossDeductions;
+
+  return {
+    basic, hra, flexibleAllowance, personalAllowance, otherAllowance,
+    employeePF, provisionTax, otherDeduction,
+    grossEarnings, grossDeductions, netPay
+  };
+}
+
 // Logged-in: list payslips (admin sees all, employee sees own)
 router.get('/', requireLogin, (req, res) => {
   const db = readDB();
@@ -19,30 +71,51 @@ router.get('/', requireLogin, (req, res) => {
   res.json({ payslips: payslips.sort((a, b) => (b.month || '').localeCompare(a.month || '')) });
 });
 
+// Admin: get a single payslip (used by the print/view page)
+router.get('/:id', requireLogin, (req, res) => {
+  const db = readDB();
+  const { user } = req.session;
+  const payslip = db.payslips.find(p => p.id === Number(req.params.id));
+  if (!payslip) return res.status(404).json({ error: 'Payslip not found' });
+  if (user.role !== 'admin' && payslip.employeeId !== user.employeeId) {
+    return res.status(403).json({ error: 'Not authorized to view this payslip' });
+  }
+  res.json({ payslip });
+});
+
 // Admin: create a payslip for an employee
 router.post('/', requireAdmin, (req, res) => {
-  const { employeeId, month, basic, allowances, deductions } = req.body;
-  if (!employeeId || !month || basic == null) {
+  const { employeeId, month, lopDays, note } = req.body;
+  if (!employeeId || !month || req.body.basic == null) {
     return res.status(400).json({ error: 'employeeId, month and basic are required' });
   }
   const db = readDB();
   const employee = db.employees.find(e => e.id === Number(employeeId));
   if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
-  const basicNum = Number(basic) || 0;
-  const allowancesNum = Number(allowances) || 0;
-  const deductionsNum = Number(deductions) || 0;
-  const netPay = basicNum + allowancesNum - deductionsNum;
+  if (db.payslips.some(p => p.employeeId === employee.id && p.month === month)) {
+    return res.status(400).json({ error: 'A payslip for this employee and month already exists' });
+  }
+
+  const stdDays = daysInMonth(month);
+  const lop = Math.min(num(lopDays), stdDays);
+  const workedDays = stdDays - lop;
+
+  const amounts = buildAmounts(req.body);
 
   const payslip = {
     id: nextId(db, 'payslips'),
-    employeeId: employee.id,
-    employeeName: employee.name,
+    ...snapshotEmployee(employee),
     month,
-    basic: basicNum,
-    allowances: allowancesNum,
-    deductions: deductionsNum,
-    netPay,
+    stdDays,
+    workedDays,
+    lopDays: lop,
+    ...amounts,
+    // legacy fields kept for backward compatibility with older UI/reports
+    allowances: amounts.flexibleAllowance,
+    deductions: amounts.grossDeductions,
+    netPay: amounts.netPay,
+    note: note || '',
     generatedDate: new Date().toISOString()
   };
   db.payslips.push(payslip);
@@ -62,24 +135,37 @@ router.post('/generate-all', requireAdmin, (req, res) => {
     db.payslips.filter(p => p.month === month).map(p => p.employeeId)
   );
 
+  const stdDays = daysInMonth(month);
+
   const generated = [];
   const skipped = [];
   db.employees.forEach((employee) => {
     if (employee.status !== 'active') return;
     if (alreadyGenerated.has(employee.id)) { skipped.push(employee.name); return; }
 
-    const basicNum = Number(employee.basicSalary) || 0;
-    const allowancesNum = Number(employee.allowances) || 0;
-    const deductionsNum = Number(employee.deductions) || 0;
+    const amounts = buildAmounts({
+      basic: employee.basicSalary,
+      hra: employee.hra,
+      flexibleAllowance: employee.allowances,
+      personalAllowance: 0,
+      otherAllowance: 0,
+      employeePF: employee.employeePF,
+      provisionTax: employee.professionalTax,
+      otherDeduction: 0
+    });
+
     const payslip = {
       id: nextId(db, 'payslips'),
-      employeeId: employee.id,
-      employeeName: employee.name,
+      ...snapshotEmployee(employee),
       month,
-      basic: basicNum,
-      allowances: allowancesNum,
-      deductions: deductionsNum,
-      netPay: basicNum + allowancesNum - deductionsNum,
+      stdDays,
+      workedDays: stdDays,
+      lopDays: 0,
+      ...amounts,
+      allowances: amounts.flexibleAllowance,
+      deductions: amounts.grossDeductions,
+      netPay: amounts.netPay,
+      note: '',
       generatedDate: new Date().toISOString(),
       autoGenerated: true
     };

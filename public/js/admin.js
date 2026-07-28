@@ -459,6 +459,8 @@ function openEmpModal(id) {
     setSelectOrOther('empInactiveReason', 'empInactiveReasonOther', emp.inactiveReason || '');
     document.getElementById('empManager').value = emp.managerId || '';
     document.getElementById('empUan').value = emp.uan || '';
+    document.getElementById('empPfNumber').value = emp.pfNumber || '';
+    document.getElementById('empLocation').value = emp.location || '';
     document.getElementById('empAnnualCTC').value = emp.annualCTC || 0;
     document.getElementById('empMonthlyCTC').value = emp.monthlyCTC || 0;
     document.getElementById('empHra').value = emp.hra || 0;
@@ -582,6 +584,8 @@ async function submitEmployee(e) {
       : '',
     managerId: document.getElementById('empManager').value,
     uan,
+    pfNumber: document.getElementById('empPfNumber').value.trim(),
+    location: document.getElementById('empLocation').value.trim(),
     annualCTC: document.getElementById('empAnnualCTC').value,
     monthlyCTC: document.getElementById('empMonthlyCTC').value,
     hra: document.getElementById('empHra').value,
@@ -772,12 +776,15 @@ async function renderPayslips() {
       </div>
       <div class="panel-body">
         ${payslips.length === 0 ? emptyState('No payslips generated yet') : renderTable(
-          ['Employee', 'Month', 'Basic', 'Allowances', 'Deductions', 'Net pay', ''],
+          ['Employee', 'Month', 'Gross earnings', 'Gross deductions', 'Net pay', ''],
           payslips.map(p => [
             escapeHtml(p.employeeName), escapeHtml(p.month),
-            fmtMoney(p.basic), fmtMoney(p.allowances), fmtMoney(p.deductions),
+            fmtMoney(p.grossEarnings ?? (Number(p.basic) + Number(p.allowances))), fmtMoney(p.grossDeductions ?? p.deductions),
             `<strong>${fmtMoney(p.netPay)}</strong>`,
-            `<button class="btn btn-danger btn-sm" onclick="deletePayslip(${p.id})">Delete</button>`
+            `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${p.id})">View</button>
+              <button class="btn btn-danger btn-sm" onclick="deletePayslip(${p.id})">Delete</button>
+            </span>`
           ])
         )}
       </div>
@@ -789,6 +796,7 @@ async function openPayslipModal() {
   document.getElementById('payslipForm').reset();
   await populateEmployeeSelect('payslipEmployee');
   autoFillPayslipAmounts();
+  recalcPayslipTotals();
   document.getElementById('payslipModal').classList.add('show');
 }
 
@@ -797,8 +805,24 @@ function autoFillPayslipAmounts() {
   const emp = CACHE.employees.find(e => e.id === empId);
   if (!emp) return;
   document.getElementById('payslipBasic').value = emp.basicSalary || 0;
-  document.getElementById('payslipAllowances').value = emp.allowances || 0;
-  document.getElementById('payslipDeductions').value = emp.deductions || 0;
+  document.getElementById('payslipHra').value = emp.hra || 0;
+  document.getElementById('payslipFlexAllowance').value = emp.allowances || 0;
+  document.getElementById('payslipPersonalAllowance').value = 0;
+  document.getElementById('payslipOtherAllowance').value = 0;
+  document.getElementById('payslipEmployeePF').value = emp.employeePF || 0;
+  document.getElementById('payslipProvisionTax').value = emp.professionalTax || 0;
+  document.getElementById('payslipOtherDeduction').value = 0;
+  document.getElementById('payslipLopDays').value = 0;
+  recalcPayslipTotals();
+}
+
+function recalcPayslipTotals() {
+  const val = (id) => Number(document.getElementById(id).value) || 0;
+  const gross = val('payslipBasic') + val('payslipHra') + val('payslipFlexAllowance') + val('payslipPersonalAllowance') + val('payslipOtherAllowance');
+  const deductions = val('payslipEmployeePF') + val('payslipProvisionTax') + val('payslipOtherDeduction');
+  document.getElementById('payslipGrossEarnings').textContent = fmtMoney(gross);
+  document.getElementById('payslipGrossDeductions').textContent = fmtMoney(deductions);
+  document.getElementById('payslipNetPay').textContent = fmtMoney(gross - deductions);
 }
 
 function openBulkPayslipModal() {
@@ -815,8 +839,15 @@ async function submitPayslip(e) {
         employeeId: Number(document.getElementById('payslipEmployee').value),
         month: document.getElementById('payslipMonth').value,
         basic: document.getElementById('payslipBasic').value,
-        allowances: document.getElementById('payslipAllowances').value,
-        deductions: document.getElementById('payslipDeductions').value
+        hra: document.getElementById('payslipHra').value,
+        flexibleAllowance: document.getElementById('payslipFlexAllowance').value,
+        personalAllowance: document.getElementById('payslipPersonalAllowance').value,
+        otherAllowance: document.getElementById('payslipOtherAllowance').value,
+        employeePF: document.getElementById('payslipEmployeePF').value,
+        provisionTax: document.getElementById('payslipProvisionTax').value,
+        otherDeduction: document.getElementById('payslipOtherDeduction').value,
+        lopDays: document.getElementById('payslipLopDays').value,
+        note: document.getElementById('payslipNote').value
       }
     });
     toast('Payslip generated');
