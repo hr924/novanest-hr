@@ -75,7 +75,7 @@ async function init() {
     document.getElementById('empInactiveReasonWrap').style.display = e.target.value === 'inactive' ? 'block' : 'none';
   });
   document.getElementById('empInactiveReason').addEventListener('change', (e) => {
-    document.getElementById('empInactiveReasonOther').style.display = e.target.value === 'Other' ? 'block' : 'none';
+    document.getElementById('empInactiveReasonOther').style.display = e.target.value === '__other__' ? 'block' : 'none';
   });
   document.getElementById('empPhotoFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -425,7 +425,7 @@ function setSelectOrOther(selectId, otherId, value) {
   }
 }
 
-function openEmpModal(id) {
+async function openEmpModal(id) {
   const form = document.getElementById('empForm');
   form.reset();
   document.getElementById('empId').value = '';
@@ -446,7 +446,16 @@ function openEmpModal(id) {
     managerOptions.map(e => `<option value="${e.id}">${escapeHtml(e.name)} (${escapeHtml(e.employeeCode || '')})</option>`).join('');
 
   if (id) {
-    const emp = CACHE.employees.find(e => e.id === id);
+    // Fetch this employee fresh from the server rather than trusting the
+    // cached roster list, so the form is always seeded from the real,
+    // complete saved record — never from a stale or partial snapshot.
+    let emp;
+    try {
+      ({ employee: emp } = await api(`/employees/${id}`));
+    } catch (err) {
+      toast('Could not load employee details: ' + err.message, true);
+      return;
+    }
     document.getElementById('empId').value = emp.id;
     document.getElementById('empName').value = emp.name;
     document.getElementById('empEmail').value = emp.email;
@@ -467,7 +476,9 @@ function openEmpModal(id) {
     document.getElementById('empEmployerPF').value = emp.employerPF || 0;
     document.getElementById('empEmployeePF').value = emp.employeePF || 0;
     document.getElementById('empProfessionalTax').value = emp.professionalTax || 0;
-    recalcSalaryFields();
+    document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
+    document.getElementById('empAllowances').value = emp.allowances || 0;
+    document.getElementById('empDeductions').value = emp.deductions || 0;
     document.getElementById('empDob').value = emp.dob || '';
     document.getElementById('empGender').value = emp.gender || '';
     document.getElementById('empBloodGroup').value = emp.bloodGroup || '';
@@ -578,7 +589,7 @@ async function submitEmployee(e) {
     joinDate: document.getElementById('empJoinDate').value,
     status: document.getElementById('empStatus').value,
     inactiveReason: document.getElementById('empStatus').value === 'inactive'
-      ? (document.getElementById('empInactiveReason').value === 'Other'
+      ? (document.getElementById('empInactiveReason').value === '__other__'
           ? document.getElementById('empInactiveReasonOther').value.trim()
           : document.getElementById('empInactiveReason').value)
       : '',

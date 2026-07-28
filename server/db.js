@@ -155,7 +155,8 @@ function migrate(data) {
         'dob', 'gender', 'bloodGroup', 'address',
         'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
         'aadhaarNumber', 'panNumber', 'passportNumber',
-        'bankAccountNumber', 'bankIFSC', 'bankName', 'profilePhoto', 'uan'
+        'bankAccountNumber', 'bankIFSC', 'bankName', 'profilePhoto', 'uan',
+        'location', 'pfNumber', 'inactiveReason'
       ].forEach((field) => {
         if (typeof emp[field] !== 'string') { emp[field] = ''; changed = true; }
       });
