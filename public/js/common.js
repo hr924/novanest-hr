@@ -79,7 +79,7 @@ function payslipDateLabel(iso) {
   return `${dd}/${mon}/${d.getFullYear()}`;
 }
 
-function buildPayslipHTML(p) {
+function buildPayslipHTML(p, autoPrint) {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -174,6 +174,7 @@ function buildPayslipHTML(p) {
   </table>
   ${p.note ? `<div class="ps-note">${p.note}</div>` : ''}
   <div class="ps-footer">** This is a computer generated payslip and does not require signature and stamp.</div>
+  ${autoPrint ? `<script>window.onload = function() { setTimeout(function() { window.print(); }, 300); };<\/script>` : ''}
 </body>
 </html>`;
 }
@@ -184,6 +185,21 @@ async function viewPayslip(id) {
     const win = window.open('', '_blank');
     if (!win) { toast('Please allow pop-ups to view the payslip', true); return; }
     win.document.write(buildPayslipHTML(payslip));
+    win.document.close();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// Opens the payslip in a new tab and immediately triggers the browser's
+// print dialog so the person can choose "Save as PDF" as the destination —
+// this is what gives them an actual downloadable file.
+async function downloadPayslip(id) {
+  try {
+    const { payslip } = await api(`/payslips/${id}`);
+    const win = window.open('', '_blank');
+    if (!win) { toast('Please allow pop-ups to download the payslip', true); return; }
+    win.document.write(buildPayslipHTML(payslip, true));
     win.document.close();
   } catch (err) {
     toast(err.message, true);

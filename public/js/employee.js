@@ -247,7 +247,10 @@ async function renderPayslips() {
           fmtMoney(p.grossEarnings ?? (Number(p.basic) + Number(p.allowances))),
           fmtMoney(p.grossDeductions ?? p.deductions),
           `<strong>${fmtMoney(p.netPay)}</strong>`,
-          `<button class="btn btn-ghost btn-sm" onclick="viewPayslip(${p.id})">View</button>`
+          `<span class="section-actions">
+            <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${p.id})">View</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadPayslip(${p.id})">Download</button>
+          </span>`
         ])
       )}
     </div></div>

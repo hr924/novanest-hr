@@ -783,6 +783,7 @@ async function renderPayslips() {
             `<strong>${fmtMoney(p.netPay)}</strong>`,
             `<span class="section-actions">
               <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${p.id})">View</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadPayslip(${p.id})">Download</button>
               <button class="btn btn-danger btn-sm" onclick="deletePayslip(${p.id})">Delete</button>
             </span>`
           ])
