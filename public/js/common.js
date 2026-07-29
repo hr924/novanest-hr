@@ -1,6 +1,24 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('/service-worker.js').then((reg) => {
+      // Explicitly ask the browser to check for a new service-worker.js
+      // right away, instead of waiting for its normal (slow, throttled)
+      // background update check. This is what makes app-shell fixes show
+      // up on the very next reload rather than being stuck behind an old
+      // cached version indefinitely.
+      reg.update().catch(() => {});
+    }).catch(() => {});
+  });
+
+  // When a new service worker takes control (i.e. an update just
+  // finished installing), reload once so the page picks up the fresh
+  // HTML/CSS/JS immediately instead of the person having to reload
+  // manually to see fixes.
+  let hasReloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hasReloadedForUpdate) return;
+    hasReloadedForUpdate = true;
+    window.location.reload();
   });
 }
 

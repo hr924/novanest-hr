@@ -1,9 +1,16 @@
 // Minimal service worker — enables "Add to Home Screen" installability
-// and caches the static app shell (HTML/CSS/JS) so the app opens instantly.
-// API requests (/api/...) always go straight to the network since that data
-// must stay live.
+// and caches the static app shell (HTML/CSS/JS) so the app still opens
+// when offline. API requests (/api/...) always go straight to the network
+// since that data must stay live.
+//
+// IMPORTANT: the shell is served network-first. Whenever the app is
+// online, the browser always fetches the latest HTML/CSS/JS from the
+// server (and refreshes the offline cache in the background) — it never
+// silently keeps serving an old cached copy of admin.js/employee.js while
+// online. The cache is only used as a fallback when the network request
+// fails (i.e. genuinely offline).
 
-const CACHE_NAME = 'novanest-hr-shell-v1';
+const CACHE_NAME = 'novanest-hr-shell-v2';
 const SHELL_FILES = [
   '/login.html',
   '/index.html',
@@ -45,18 +52,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first: always try to get the latest file when online. Only
+  // fall back to the cached copy if the network request actually fails.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || networkFetch;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
