@@ -3,7 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'db.json');
+// DATA_DIR can be set to a folder outside the app's own directory (e.g. on
+// a persistent volume) so that redeploying the app — replacing this whole
+// folder with a newer version — never touches the saved employee data.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const DB_PATH = path.join(DATA_DIR, 'db.json');
 
 function randomPassword() {
   return Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-6);

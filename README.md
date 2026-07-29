@@ -28,6 +28,32 @@ npm start
 
 The server starts at **http://localhost:3000**.
 
+## ⚠️ Updating the app without losing your data
+
+All employee/payroll data lives in one file: `data/db.json`. That file is
+**not** part of the app's source code, so whenever you receive an updated
+version of this project (a new zip), do **not** just delete the old folder
+and extract the new one over it — that deletes `data/db.json` along with it
+and every employee record is gone.
+
+Safe update steps:
+
+1. **Before** replacing anything, copy `data/db.json` from your current
+   deployment somewhere safe (Desktop, USB drive, etc.).
+2. Extract/copy in the new version of the app.
+3. Copy your saved `data/db.json` back into the new `data/` folder,
+   **overwriting** the empty one that came with the update.
+4. Restart the server (`npm start`).
+
+Even better — set the `DATA_DIR` environment variable once to a folder
+*outside* the app's own directory (e.g. `DATA_DIR=/home/you/hr-data`) and the
+database will always live there, so future updates can never touch it no
+matter how you redeploy:
+
+```bash
+DATA_DIR=/home/you/hr-data npm start
+```
+
 Open:
 - `http://localhost:3000/index.html` — public careers page
 - `http://localhost:3000/login.html` — sign in
