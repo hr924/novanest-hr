@@ -318,12 +318,35 @@ function onEmpColumnToggle(key, checked) {
   const cols = getEmpVisibleColumns();
   cols[key] = checked;
   setEmpVisibleColumns(cols);
-  renderEmployees();
+  renderEmployees(false);
 }
 
-async function renderEmployees() {
-  const { employees } = await api('/employees');
-  CACHE.employees = employees;
+let empSearchQuery = '';
+
+function onEmpSearchInput(value) {
+  empSearchQuery = value;
+  renderEmployees(false);
+}
+
+function matchesEmpSearch(e, query) {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [e.employeeCode, e.name, e.managerName].filter(Boolean).join(' ').toLowerCase();
+  // Every space-separated term must match somewhere across ID, name, and
+  // manager combined — so "reddy priya" finds Priya's report named Reddy.
+  return q.split(/\s+/).every(term => haystack.includes(term));
+}
+
+async function renderEmployees(refetch) {
+  const searchHadFocus = document.activeElement && document.activeElement.id === 'empSearchInput';
+  const searchCursorPos = searchHadFocus ? document.activeElement.selectionStart : null;
+
+  if (refetch !== false || !CACHE.employees) {
+    const { employees } = await api('/employees');
+    CACHE.employees = employees;
+  }
+  const employees = CACHE.employees.filter(e => matchesEmpSearch(e, empSearchQuery));
   const visibleCols = getEmpVisibleColumns();
 
   const allHeaders = [
@@ -344,7 +367,15 @@ async function renderEmployees() {
     <div class="panel">
       <div class="panel-header">
         <h2>Roster</h2>
-        <span style="display:flex; gap:8px; position:relative;">
+        <span style="display:flex; gap:8px; position:relative; align-items:center;">
+          <input
+            id="empSearchInput"
+            type="search"
+            placeholder="Search by employee ID, name, or manager…"
+            value="${escapeHtml(empSearchQuery)}"
+            oninput="onEmpSearchInput(this.value)"
+            style="margin:0; width:260px; padding:6px 10px; font-size:13px;"
+          >
           <div style="position:relative;">
             <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEmpColumnDropdown()">Columns ▾</button>
             <div id="empColumnDropdown" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:var(--panel-bg, #fff); border:1px solid var(--line); border-radius:6px; padding:10px 12px; z-index:20; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.12);">
@@ -360,7 +391,7 @@ async function renderEmployees() {
         </span>
       </div>
       <div class="panel-body">
-        ${employees.length === 0 ? emptyState('No employees yet') : renderTable(
+        ${employees.length === 0 ? emptyState(empSearchQuery ? 'No employees match your search' : 'No employees yet') : renderTable(
           shownHeaders.map(h => h.html),
           employees.map(e => {
             const row = {
@@ -372,7 +403,9 @@ async function renderEmployees() {
               department: escapeHtml(e.department),
               position: escapeHtml(e.position),
               manager: e.managerName ? escapeHtml(e.managerName) : '<span class="muted">—</span>',
-              status: pill(e.status),
+              status: e.status === 'inactive'
+                ? `${pill(e.status)}${e.inactiveReason ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(e.inactiveReason)}</span>` : ''}`
+                : pill(e.status),
               login: e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
               actions: `<span class="section-actions">
                 <button class="btn btn-ghost btn-sm" onclick="openEmpModal(${e.id})">Edit</button>
@@ -385,6 +418,11 @@ async function renderEmployees() {
       </div>
     </div>
   `;
+  if (searchHadFocus) {
+    const input = document.getElementById('empSearchInput');
+    input.focus();
+    if (searchCursorPos != null) input.setSelectionRange(searchCursorPos, searchCursorPos);
+  }
 }
 
 function recalcSalaryFields() {

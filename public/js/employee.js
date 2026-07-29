@@ -88,7 +88,7 @@ async function renderProfile() {
           ${row('Department', escapeHtml(employee.department))}
           ${row('Designation', escapeHtml(employee.position))}
           ${row('Joined', fmtDate(employee.joinDate))}
-          ${row('Status', pill(employee.status))}
+          ${row('Status', pill(employee.status) + (employee.status === 'inactive' && employee.inactiveReason ? ` <span class="muted">(${escapeHtml(employee.inactiveReason)})</span>` : ''))}
         </table>
       </div></div>
 
