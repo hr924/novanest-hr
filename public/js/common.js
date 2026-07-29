@@ -97,6 +97,13 @@ function payslipDateLabel(iso) {
   return `${dd}/${mon}/${d.getFullYear()}`;
 }
 
+function payslipMaskLast4(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '—';
+  if (digits.length <= 4) return digits;
+  return '*'.repeat(digits.length - 4) + digits.slice(-4);
+}
+
 function buildPayslipHTML(p, autoPrint) {
   return `<!DOCTYPE html>
 <html>
@@ -135,14 +142,14 @@ function buildPayslipHTML(p, autoPrint) {
     </tr>
     <tr>
       <td class="ps-key">Bank</td><td>${p.bankName || '—'}</td>
-      <td class="ps-key">Bank A/c No.</td><td>${p.bankAccountNumber || '—'}</td>
+      <td class="ps-key">Bank A/c No.</td><td>${payslipMaskLast4(p.bankAccountNumber)}</td>
     </tr>
     <tr>
       <td class="ps-key">DOJ</td><td>${payslipDateLabel(p.doj)}</td>
       <td class="ps-key">LOP Days</td><td>${p.lopDays ?? 0}</td>
     </tr>
     <tr>
-      <td class="ps-key">PF No.</td><td>${p.pfNumber || '—'}</td>
+      <td class="ps-key">Department</td><td>${p.department || '—'}</td>
       <td class="ps-key">STD Days</td><td>${p.stdDays ?? '—'}</td>
     </tr>
     <tr>
@@ -150,8 +157,8 @@ function buildPayslipHTML(p, autoPrint) {
       <td class="ps-key">Worked Days</td><td>${p.workedDays ?? '—'}</td>
     </tr>
     <tr>
-      <td class="ps-key">Department</td><td>${p.department || '—'}</td>
-      <td class="ps-key">PF – UAN</td><td>${p.uan || '—'}</td>
+      <td class="ps-key">PF No.</td><td>${p.pfNumber || '—'}</td>
+      <td class="ps-key">PF – UAN</td><td>${payslipMaskLast4(p.uan)}</td>
     </tr>
   </table>
   <br>
