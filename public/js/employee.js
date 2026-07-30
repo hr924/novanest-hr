@@ -49,6 +49,7 @@ async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     profile: renderProfile, attendance: renderAttendance, leave: renderLeave,
+    timesheets: renderTimesheets,
     payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets,
     cases: renderCases, surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows,
@@ -226,6 +227,163 @@ async function submitLeave(e) {
     closeModal('leaveModal');
     document.getElementById('leaveForm').reset();
     renderLeave();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Timesheets ---------------- */
+let TS_CACHE = [];
+
+async function renderTimesheets() {
+  const { timesheets } = await api('/timesheets');
+  TS_CACHE = timesheets;
+  document.getElementById('main').innerHTML = `
+    <h1>Timesheets</h1>
+    <div class="subtitle">Fill your weekly timesheet and track manager approval.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>Your timesheets</h2><button class="btn btn-primary btn-sm" onclick="openTimesheetModal()">+ Fill timesheet</button></div>
+      <div class="panel-body">
+        ${timesheets.length === 0 ? emptyState('No timesheets yet') : renderTable(
+          ['Week starting', 'Total hours', 'Status', 'Manager decision', ''],
+          timesheets.map(t => [
+            fmtDate(t.weekStarting),
+            t.totalHours,
+            pill(t.status),
+            t.status === 'submitted' || t.status === 'approved' || t.status === 'rejected'
+              ? `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`
+              : '<span class="muted">—</span>',
+            ['draft', 'rejected'].includes(t.status) ? `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="openTimesheetModal(${t.id})">Edit</button>
+              ${t.status === 'draft' ? `<button class="btn btn-danger btn-sm" onclick="deleteTimesheet(${t.id})">Delete</button>` : ''}
+            </span>` : '<span class="muted">Locked</span>'
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+function mostRecentMonday() {
+  const d = new Date();
+  const day = d.getDay(); // 0 = Sunday .. 6 = Saturday
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function timesheetWeekDates(weekStarting) {
+  const dates = [];
+  const start = new Date(weekStarting + 'T00:00:00');
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+let TS_CURRENT_ID = null;
+let TS_CURRENT_ENTRIES = [];
+
+function openTimesheetModal(id) {
+  const ts = id ? TS_CACHE.find(t => t.id === id) : null;
+  TS_CURRENT_ID = ts ? ts.id : null;
+  TS_CURRENT_ENTRIES = ts ? ts.entries : [];
+  document.getElementById('timesheetForm').reset();
+  document.getElementById('timesheetModalTitle').textContent = ts ? 'Edit timesheet' : 'Fill timesheet';
+  document.getElementById('tsWeekStart').value = ts ? ts.weekStarting : mostRecentMonday();
+  document.getElementById('tsNotes').value = ts ? (ts.notes || '') : '';
+  renderTimesheetEntryRows();
+  document.getElementById('timesheetModal').classList.add('show');
+}
+
+function renderTimesheetEntryRows() {
+  const weekStart = document.getElementById('tsWeekStart').value;
+  const container = document.getElementById('tsEntriesContainer');
+  if (!weekStart) { container.innerHTML = ''; return; }
+  const dates = timesheetWeekDates(weekStart);
+  container.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <tr>
+        <th style="text-align:left; padding:4px 6px;">Date</th>
+        <th style="text-align:left; padding:4px 6px;">Project</th>
+        <th style="text-align:left; padding:4px 6px;">Task</th>
+        <th style="text-align:left; padding:4px 6px; width:80px;">Hours</th>
+      </tr>
+      ${dates.map((date, i) => {
+        const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+        return `<tr>
+          <td style="padding:4px 6px;">${fmtDate(date)}</td>
+          <td style="padding:4px 6px;"><input id="tsProject${i}" value="${escapeHtml(existing.project || '')}" style="margin:0;" placeholder="Project"></td>
+          <td style="padding:4px 6px;"><input id="tsTask${i}" value="${escapeHtml(existing.task || '')}" style="margin:0;" placeholder="Task"></td>
+          <td style="padding:4px 6px;"><input id="tsHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.hours || 0}" style="margin:0;" oninput="updateTimesheetTotal()"></td>
+        </tr>`;
+      }).join('')}
+    </table>
+  `;
+  updateTimesheetTotal();
+}
+
+function updateTimesheetTotal() {
+  let total = 0;
+  for (let i = 0; i < 7; i++) {
+    const el = document.getElementById('tsHours' + i);
+    if (el) total += Number(el.value) || 0;
+  }
+  document.getElementById('tsTotalHours').textContent = total;
+}
+
+function collectTimesheetEntries() {
+  const weekStart = document.getElementById('tsWeekStart').value;
+  return timesheetWeekDates(weekStart).map((date, i) => ({
+    date,
+    project: document.getElementById('tsProject' + i).value.trim(),
+    task: document.getElementById('tsTask' + i).value.trim(),
+    hours: Number(document.getElementById('tsHours' + i).value) || 0
+  })).filter(e => e.project || e.task || e.hours > 0);
+}
+
+async function saveTimesheetDraft() {
+  const weekStarting = document.getElementById('tsWeekStart').value;
+  if (!weekStarting) { toast('Pick a week first', true); return; }
+  try {
+    const { timesheet } = await api('/timesheets', {
+      method: 'POST',
+      body: {
+        weekStarting,
+        entries: collectTimesheetEntries(),
+        notes: document.getElementById('tsNotes').value
+      }
+    });
+    TS_CURRENT_ID = timesheet.id;
+    toast('Saved as draft');
+    closeModal('timesheetModal');
+    renderTimesheets();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function submitTimesheetForApproval() {
+  const weekStarting = document.getElementById('tsWeekStart').value;
+  if (!weekStarting) { toast('Pick a week first', true); return; }
+  const entries = collectTimesheetEntries();
+  if (entries.length === 0) { toast('Add at least one entry before submitting', true); return; }
+  try {
+    const { timesheet } = await api('/timesheets', {
+      method: 'POST',
+      body: { weekStarting, entries, notes: document.getElementById('tsNotes').value }
+    });
+    await api(`/timesheets/${timesheet.id}/submit`, { method: 'PUT' });
+    toast('Submitted for manager approval');
+    closeModal('timesheetModal');
+    renderTimesheets();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteTimesheet(id) {
+  if (!confirm('Delete this draft timesheet?')) return;
+  try {
+    await api(`/timesheets/${id}`, { method: 'DELETE' });
+    toast('Timesheet deleted');
+    renderTimesheets();
   } catch (err) { toast(err.message, true); }
 }
 
@@ -470,10 +628,13 @@ async function toggleWorkflowStep(workflowId, stepId, done) {
 /* ---------------- Team approvals (manager only) ---------------- */
 async function renderTeamApprovals() {
   const { leave } = await api('/leave');
+  const { timesheets } = await api('/timesheets');
+  TS_CACHE = timesheets;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'submitted');
   document.getElementById('main').innerHTML = `
     <h1>Team approvals</h1>
-    <div class="subtitle">Leave requests from people who report to you.</div>
-    <div class="panel"><div class="panel-body">
+    <div class="subtitle">Leave requests and timesheets from people who report to you.</div>
+    <div class="panel"><div class="panel-header"><h2>Leave requests</h2></div><div class="panel-body">
       ${leave.length === 0 ? emptyState('No requests from your team yet') : renderTable(
         ['Employee', 'Type', 'Dates', 'Reason', 'Your decision', ''],
         leave.map(l => [
@@ -488,8 +649,42 @@ async function renderTeamApprovals() {
         ])
       )}
     </div></div>
+    <div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Timesheets</h2></div><div class="panel-body">
+      ${timesheets.length === 0 ? emptyState('No timesheets from your team yet') : renderTable(
+        ['Employee', 'Week starting', 'Total hours', 'Status', ''],
+        timesheets.map(t => [
+          escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours, pill(t.status),
+          t.status === 'submitted' ? `<span class="section-actions">
+            <button class="btn btn-ghost btn-sm" onclick="viewTeamTimesheet(${t.id})">View</button>
+            <button class="btn btn-primary btn-sm" onclick="managerDecideTimesheet(${t.id}, 'approved')">Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="managerDecideTimesheetPrompt(${t.id})">Decline</button>
+          </span>` : `<button class="btn btn-ghost btn-sm" onclick="viewTeamTimesheet(${t.id})">View</button>`
+        ])
+      )}
+    </div></div>
   `;
 }
+
+function viewTeamTimesheet(id) {
+  const ts = TS_CACHE.find(t => t.id === id);
+  if (!ts) return;
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} / ${e.task || '—'} — ${e.hours}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nTotal: ${ts.totalHours}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+}
+
+async function managerDecideTimesheet(id, status, comment) {
+  try {
+    await api(`/timesheets/${id}/manager-status`, { method: 'PUT', body: { status, comment: comment || '' } });
+    toast('Decision recorded');
+    renderTeamApprovals();
+  } catch (err) { toast(err.message, true); }
+}
+
+function managerDecideTimesheetPrompt(id) {
+  const comment = prompt('Reason for declining this timesheet (optional):') || '';
+  managerDecideTimesheet(id, 'rejected', comment);
+}
+
 async function managerDecide(id, status) {
   try {
     await api(`/leave/${id}/manager-status`, { method: 'PUT', body: { status } });

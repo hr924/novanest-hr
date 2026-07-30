@@ -105,7 +105,7 @@ async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees,
-    leave: renderLeave, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
+    leave: renderLeave, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets, cases: renderCases,
     surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports
   };
@@ -713,6 +713,59 @@ async function setLeaveStatus(id, status) {
     toast('Leave request ' + status);
     renderLeave();
   } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- Timesheets (admin/HR view) ---------------- */
+let TS_ADMIN_CACHE = [];
+
+async function renderTimesheetsAdmin() {
+  const { timesheets } = await api('/timesheets');
+  TS_ADMIN_CACHE = timesheets;
+  document.getElementById('main').innerHTML = `
+    <h1>Timesheets</h1>
+    <div class="subtitle">Weekly timesheets across the company, and their manager-approval status.</div>
+    <div class="panel">
+      <div class="panel-header"><h2>All timesheets</h2></div>
+      <div class="panel-body">
+        ${timesheets.length === 0 ? emptyState('No timesheets submitted yet') : renderTable(
+          ['Employee', 'Week starting', 'Total hours', 'Status', 'Manager decision', ''],
+          timesheets.map(t => [
+            escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours,
+            pill(t.status),
+            t.status === 'draft' ? '<span class="muted">—</span>'
+              : `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`,
+            `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="viewAdminTimesheet(${t.id})">View</button>
+              ${t.status === 'submitted' ? `
+                <button class="btn btn-primary btn-sm" onclick="adminDecideTimesheet(${t.id}, 'approved')">Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDecideTimesheetPrompt(${t.id})">Decline</button>
+              ` : ''}
+            </span>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+function viewAdminTimesheet(id) {
+  const ts = TS_ADMIN_CACHE.find(t => t.id === id);
+  if (!ts) return;
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} / ${e.task || '—'} — ${e.hours}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nTotal: ${ts.totalHours}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+}
+
+async function adminDecideTimesheet(id, status, comment) {
+  try {
+    await api(`/timesheets/${id}/manager-status`, { method: 'PUT', body: { status, comment: comment || '' } });
+    toast('Decision recorded');
+    renderTimesheetsAdmin();
+  } catch (err) { toast(err.message, true); }
+}
+
+function adminDecideTimesheetPrompt(id) {
+  const comment = prompt('Reason for declining this timesheet (optional):') || '';
+  adminDecideTimesheet(id, 'rejected', comment);
 }
 
 /* ---------------- Attendance ---------------- */

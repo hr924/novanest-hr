@@ -34,6 +34,7 @@ function defaultData() {
       users: 2, jobs: 3, applications: 1, employees: 1, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
       tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
+      timesheets: 1,
       employeeCode: 1001,
       employeeDocument: 1
     },
@@ -76,7 +77,8 @@ function defaultData() {
     surveys: [],
     surveyResponses: [],
     kbArticles: [],
-    workflows: []
+    workflows: [],
+    timesheets: []
   };
 }
 
@@ -106,8 +108,9 @@ function migrate(data) {
   ensureArray('surveyResponses');
   ensureArray('kbArticles');
   ensureArray('workflows');
+  ensureArray('timesheets');
   if (!data.nextId) data.nextId = {};
-  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows'].forEach((key) => {
+  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets'].forEach((key) => {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
   });
   if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }

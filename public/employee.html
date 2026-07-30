@@ -32,6 +32,7 @@
     <div class="sidebar-link active" data-view="profile">My profile</div>
     <div class="sidebar-link" data-view="attendance">Attendance</div>
     <div class="sidebar-link" data-view="leave">Leave requests</div>
+    <div class="sidebar-link" data-view="timesheets">Timesheets</div>
     <div class="sidebar-link" id="teamApprovalsLink" data-view="teamApprovals" style="display:none;">Team approvals</div>
     <div class="sidebar-link" data-view="payslips">Payslips</div>
     <div class="sidebar-link" data-view="form16">Form 16</div>
@@ -64,6 +65,27 @@
         <label for="leaveReason">Reason (optional)</label>
         <textarea id="leaveReason"></textarea>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Submit request</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Fill/edit timesheet modal -->
+<div class="modal-backdrop" id="timesheetModal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3 id="timesheetModalTitle">Fill timesheet</h3><button class="modal-close" onclick="closeModal('timesheetModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="timesheetForm" onsubmit="return false;">
+        <label for="tsWeekStart">Week starting (Monday)</label>
+        <input id="tsWeekStart" type="date" required onchange="renderTimesheetEntryRows()">
+        <div id="tsEntriesContainer" style="margin-top:10px;"></div>
+        <label for="tsNotes" style="margin-top:10px;">Notes (optional)</label>
+        <textarea id="tsNotes"></textarea>
+        <div class="hint-box" style="margin-top:10px;">Total hours this week: <strong id="tsTotalHours">0</strong></div>
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button class="btn btn-ghost" type="button" style="flex:1; justify-content:center;" onclick="saveTimesheetDraft()">Save as draft</button>
+          <button class="btn btn-primary" type="button" style="flex:1; justify-content:center;" onclick="submitTimesheetForApproval()">Submit for approval</button>
+        </div>
       </form>
     </div>
   </div>
