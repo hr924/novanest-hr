@@ -196,7 +196,78 @@ function readDB() {
   return data;
 }
 
+// ---------------- Automatic backups ----------------
+// Every time data is saved, the state as it was *right before* that save is
+// snapshotted first. So no matter what caused a bad save (a bug, a bad
+// edit, anything), there's always a recovery point from just before it.
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const BACKUP_MIN_INTERVAL_MS = 30 * 1000; // avoid spamming a backup file per keystroke-level save
+const MAX_BACKUPS = 200;
+let lastBackupAt = 0;
+
+function ensureBackupDir() {
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+function pruneBackups() {
+  try {
+    const files = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith('db-') && f.endsWith('.json')).sort();
+    const excess = files.length - MAX_BACKUPS;
+    if (excess > 0) {
+      files.slice(0, excess).forEach((f) => {
+        try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch (e) { /* best-effort */ }
+      });
+    }
+  } catch (e) { /* best-effort */ }
+}
+
+function backupNow(data, force) {
+  const now = Date.now();
+  if (!force && now - lastBackupAt < BACKUP_MIN_INTERVAL_MS) return;
+  try {
+    ensureBackupDir();
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    fs.writeFileSync(path.join(BACKUP_DIR, `db-${stamp}.json`), JSON.stringify(data, null, 2));
+    lastBackupAt = now;
+    pruneBackups();
+  } catch (e) { /* backups are best-effort and must never block a real save */ }
+}
+
+function listBackups() {
+  ensureBackupDir();
+  return fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.startsWith('db-') && f.endsWith('.json'))
+    .map((f) => {
+      const stat = fs.statSync(path.join(BACKUP_DIR, f));
+      return { filename: f, size: stat.size, createdAt: stat.mtime.toISOString() };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function restoreBackup(filename) {
+  const safeName = path.basename(String(filename)); // prevent path traversal
+  const file = path.join(BACKUP_DIR, safeName);
+  if (!fs.existsSync(file)) throw new Error('Backup not found');
+  const restored = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  // Snapshot whatever is currently live before overwriting it, so a restore
+  // can itself always be undone too.
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      backupNow(JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')), true);
+    }
+  } catch (e) { /* best-effort */ }
+  fs.writeFileSync(DB_PATH, JSON.stringify(restored, null, 2));
+  return restored;
+}
+
 function writeDB(data) {
+  // Snapshot the state as it exists on disk right now — i.e. *before* this
+  // write lands — so there's always something to roll back to.
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      backupNow(JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')), false);
+    }
+  } catch (e) { /* best-effort */ }
   fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
@@ -206,4 +277,7 @@ function nextId(db, collection) {
   return id;
 }
 
-module.exports = { readDB, writeDB, nextId, DB_PATH };
+module.exports = {
+  readDB, writeDB, nextId, DB_PATH,
+  listBackups, restoreBackup, backupNow, BACKUP_DIR
+};

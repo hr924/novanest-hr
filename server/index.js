@@ -20,6 +20,7 @@ const surveyRoutes = require('./routes/surveys');
 const kbRoutes = require('./routes/knowledgebase');
 const workflowRoutes = require('./routes/workflows');
 const timesheetRoutes = require('./routes/timesheets');
+const backupRoutes = require('./routes/backups');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,6 +52,7 @@ app.use('/api/surveys', surveyRoutes);
 app.use('/api/knowledgebase', kbRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/timesheets', timesheetRoutes);
+app.use('/api/backups', backupRoutes);
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));

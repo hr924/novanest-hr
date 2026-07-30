@@ -107,7 +107,8 @@ async function switchView(view) {
     overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees,
     leave: renderLeave, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets, cases: renderCases,
-    surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports
+    surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports,
+    backups: renderBackups
   };
   await renderers[view]();
 }
@@ -1404,6 +1405,63 @@ async function renderReports() {
     </div>
     <div class="mt-24 muted" style="font-size:12.5px;">${assignedAssets} asset${assignedAssets === 1 ? '' : 's'} currently assigned across the team.</div>
   `;
+}
+
+/* ---------------- Backups ---------------- */
+function fmtBackupSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function fmtBackupDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString();
+}
+
+async function renderBackups() {
+  const { backups } = await api('/backups');
+  document.getElementById('main').innerHTML = `
+    <h1>Backups</h1>
+    <div class="subtitle">A snapshot of all data is saved automatically before every change. If anything ever goes wrong, restore from any point below.</div>
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Snapshots (${backups.length})</h2>
+        <button class="btn btn-primary btn-sm" onclick="createBackupNow()">Back up now</button>
+      </div>
+      <div class="panel-body">
+        ${backups.length === 0 ? emptyState('No backups yet — one is taken automatically the next time anything is saved.') : renderTable(
+          ['Taken', 'Size', ''],
+          backups.map(b => [
+            fmtBackupDate(b.createdAt),
+            fmtBackupSize(b.size),
+            `<span class="section-actions">
+              <a class="btn btn-ghost btn-sm" href="/api/backups/${encodeURIComponent(b.filename)}/download">Download</a>
+              <button class="btn btn-danger btn-sm" onclick="restoreBackupNow('${b.filename}', '${fmtBackupDate(b.createdAt)}')">Restore</button>
+            </span>`
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+async function createBackupNow() {
+  try {
+    await api('/backups', { method: 'POST' });
+    toast('Backup created');
+    renderBackups();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function restoreBackupNow(filename, whenLabel) {
+  if (!confirm(`Restore all data to the snapshot from ${whenLabel}?\n\nAnything saved after that point will be replaced — though the current state is backed up first too, so this can be undone.`)) return;
+  try {
+    await api(`/backups/${encodeURIComponent(filename)}/restore`, { method: 'POST' });
+    toast('Data restored. Reloading…');
+    setTimeout(() => window.location.reload(), 800);
+  } catch (err) { toast(err.message, true); }
 }
 
 init();
