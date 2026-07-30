@@ -1,6 +1,6 @@
 const express = require('express');
 const { readDB, writeDB, nextId } = require('../db');
-const { requireLogin, requireManagerOrAdmin } = require('../middleware');
+const { requireLogin } = require('../middleware');
 
 const router = express.Router();
 
@@ -8,13 +8,18 @@ function num(v) {
   return Number(v) || 0;
 }
 
-function totalHours(entries) {
-  return (entries || []).reduce((sum, e) => sum + num(e.hours), 0);
+function totalWorkHours(entries) {
+  return (entries || []).reduce((sum, e) => sum + num(e.workHours), 0);
+}
+
+function totalLeaveHours(entries) {
+  return (entries || []).reduce((sum, e) => sum + num(e.leaveHours), 0);
 }
 
 // Logged-in: list timesheets
-// - admin sees all
-// - manager sees timesheets from employees who report to them
+// - admin sees only timesheets that have already been approved by a manager
+//   (the admin portal is a record of approved timesheets, not an approval queue)
+// - manager sees timesheets from employees who report to them, at any status
 // - employee sees their own
 router.get('/', requireLogin, (req, res) => {
   const db = readDB();
@@ -26,8 +31,9 @@ router.get('/', requireLogin, (req, res) => {
     timesheets = timesheets.filter(t => reportIds.includes(t.employeeId));
   } else if (user.role === 'employee') {
     timesheets = timesheets.filter(t => t.employeeId === user.employeeId);
+  } else if (user.role === 'admin') {
+    timesheets = timesheets.filter(t => t.status === 'approved');
   }
-  // admin: no filter, sees everything
 
   res.json({ timesheets: timesheets.sort((a, b) => (b.weekStarting || '').localeCompare(a.weekStarting || '')) });
 });
@@ -52,14 +58,15 @@ router.post('/', requireLogin, (req, res) => {
   const cleanEntries = Array.isArray(entries) ? entries.map(e => ({
     date: e.date || '',
     project: (e.project || '').trim(),
-    task: (e.task || '').trim(),
-    hours: num(e.hours)
+    workHours: num(e.workHours),
+    leaveHours: num(e.leaveHours)
   })) : [];
 
   if (existing) {
     existing.entries = cleanEntries;
     existing.notes = notes || '';
-    existing.totalHours = totalHours(cleanEntries);
+    existing.totalHours = totalWorkHours(cleanEntries);
+    existing.totalLeaveHours = totalLeaveHours(cleanEntries);
     existing.status = 'draft';
     existing.managerStatus = hasManager ? 'pending' : 'approved';
     existing.managerComment = '';
@@ -74,7 +81,8 @@ router.post('/', requireLogin, (req, res) => {
     employeeName: user.name,
     weekStarting,
     entries: cleanEntries,
-    totalHours: totalHours(cleanEntries),
+    totalHours: totalWorkHours(cleanEntries),
+    totalLeaveHours: totalLeaveHours(cleanEntries),
     notes: notes || '',
     status: 'draft',
     managerStatus: hasManager ? 'pending' : 'approved',
@@ -103,16 +111,19 @@ router.put('/:id/submit', requireLogin, (req, res) => {
     return res.status(400).json({ error: 'Add at least one entry before submitting' });
   }
 
-  timesheet.status = 'submitted';
   timesheet.managerStatus = timesheet.managerStatus === 'approved' ? 'approved' : 'pending';
+  // Employees with no manager assigned are auto-approved and need no manager action.
+  timesheet.status = timesheet.managerStatus === 'approved' ? 'approved' : 'submitted';
   timesheet.managerComment = '';
   timesheet.submittedDate = new Date().toISOString();
   writeDB(db);
   res.json({ timesheet });
 });
 
-// Manager (or admin): approve/reject a submitted timesheet
-router.put('/:id/manager-status', requireManagerOrAdmin, (req, res) => {
+// Manager only: approve/reject a submitted timesheet from someone who reports to them.
+// Admins cannot approve timesheets directly — approval is the manager's call. A
+// timesheet only shows up in the admin portal once a manager has approved it.
+router.put('/:id/manager-status', requireLogin, (req, res) => {
   const { status, comment } = req.body;
   if (!['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
@@ -122,11 +133,12 @@ router.put('/:id/manager-status', requireManagerOrAdmin, (req, res) => {
   if (!timesheet) return res.status(404).json({ error: 'Timesheet not found' });
 
   const { user } = req.session;
-  if (user.role === 'manager') {
-    const employee = db.employees.find(e => e.id === timesheet.employeeId);
-    if (!employee || employee.managerId !== user.employeeId) {
-      return res.status(403).json({ error: 'You are not the manager for this employee' });
-    }
+  if (user.role !== 'manager') {
+    return res.status(403).json({ error: 'Only a manager can approve or decline a timesheet' });
+  }
+  const employee = db.employees.find(e => e.id === timesheet.employeeId);
+  if (!employee || employee.managerId !== user.employeeId) {
+    return res.status(403).json({ error: 'You are not the manager for this employee' });
   }
   if (timesheet.status !== 'submitted') {
     return res.status(400).json({ error: 'Only a submitted timesheet can be approved or rejected' });
