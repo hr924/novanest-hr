@@ -317,35 +317,35 @@ function renderTimesheetEntryRows() {
   if (!weekStart) { container.innerHTML = ''; return; }
   const dates = timesheetWeekDates(weekStart);
   container.innerHTML = `
-    <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:760px;">
+    <table class="ts-grid">
       <tr>
-        <th style="text-align:left; padding:4px 6px; white-space:nowrap;">Date/day</th>
-        ${dates.map((date, i) => `<th style="text-align:center; padding:4px 6px; white-space:nowrap;">${tsShortDate(date)}<br><span class="muted" style="font-weight:400;">${TS_DAY_NAMES[new Date(date + 'T00:00:00').getDay()]}</span></th>`).join('')}
-        <th style="text-align:center; padding:4px 6px;">Total</th>
+        <th style="text-align:left; white-space:nowrap;">Date/day</th>
+        ${dates.map((date, i) => `<th style="text-align:center;">${tsShortDate(date)}<br><span class="muted" style="font-weight:400;">${TS_DAY_NAMES[new Date(date + 'T00:00:00').getDay()]}</span></th>`).join('')}
+        <th style="text-align:center;">Total</th>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Project</td>
+        <td style="font-weight:600;">Project</td>
         ${dates.map((date, i) => {
           const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
-          return `<td style="padding:4px 6px;"><input id="tsProject${i}" value="${escapeHtml(existing.project || '')}" style="margin:0; width:100px;" placeholder="Project"></td>`;
+          return `<td><input id="tsProject${i}" value="${escapeHtml(existing.project || '')}" style="width:72px;" placeholder="Project"></td>`;
         }).join('')}
         <td></td>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Working hours</td>
+        <td style="font-weight:600;">Working hours</td>
         ${dates.map((date, i) => {
           const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
-          return `<td style="padding:4px 6px;"><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.workHours || 0}" style="margin:0; width:70px;" oninput="updateTimesheetTotal()"></td>`;
+          return `<td><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.workHours || 0}" oninput="updateTimesheetTotal()"></td>`;
         }).join('')}
-        <td style="padding:4px 6px; text-align:center; font-weight:600;" id="tsWorkTotalCell">0</td>
+        <td style="text-align:center; font-weight:600;" id="tsWorkTotalCell">0</td>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Leave/Holiday</td>
+        <td style="font-weight:600;">Leave/Holiday</td>
         ${dates.map((date, i) => {
           const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
-          return `<td style="padding:4px 6px;"><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.leaveHours || 0}" style="margin:0; width:70px;" oninput="updateTimesheetTotal()"></td>`;
+          return `<td><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.leaveHours || 0}" oninput="updateTimesheetTotal()"></td>`;
         }).join('')}
-        <td style="padding:4px 6px; text-align:center; font-weight:600;" id="tsLeaveTotalCell">0</td>
+        <td style="text-align:center; font-weight:600;" id="tsLeaveTotalCell">0</td>
       </tr>
     </table>
   `;
