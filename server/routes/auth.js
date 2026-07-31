@@ -1,11 +1,17 @@
 const express = require('express');
-const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { readDB, writeDB } = require('../db');
 const { requireLogin } = require('../middleware');
-const { sendMail } = require('../mailer');
+const { sendPasswordResetEmail } = require('../mailer');
 
 const router = express.Router();
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
@@ -51,6 +57,9 @@ router.put('/me', requireLogin, (req, res) => {
     user.name = name.trim();
   }
   if (newPassword && newPassword.trim()) {
+    if (user.role === 'employee') {
+      return res.status(403).json({ error: 'Employees cannot set a new password here. Use "Forgot password?" on the sign-in page instead.' });
+    }
     user.password = bcrypt.hashSync(newPassword.trim(), 8);
   }
   writeDB(db);
@@ -59,79 +68,57 @@ router.put('/me', requireLogin, (req, res) => {
   res.json({ user: req.session.user });
 });
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-// Anyone: request a password reset link by email. Always responds with the
-// same generic message whether or not that email exists, so this endpoint
-// can't be used to discover which emails have accounts.
+// Step 1: employee requests a reset link by email.
+// Always responds with the same generic message, whether or not that email
+// exists, so this endpoint can't be used to check who has an account.
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  const generic = { message: 'If an account exists for that email, a password reset link has been sent.' };
-  if (!email || !String(email).trim()) {
+  const email = String(req.body.email || '').trim();
+  const genericMessage = 'If an account exists for that email, a password reset link has been sent.';
+  if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
   const db = readDB();
-  const user = db.users.find(u => u.email.toLowerCase() === String(email).trim().toLowerCase());
+  const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
   if (user) {
-    // Clear out any previous unused tokens for this user, then issue a
-    // fresh one — only the most recent reset link is ever valid.
-    db.passwordResets = db.passwordResets.filter(r => r.userId !== user.id);
     const token = crypto.randomBytes(32).toString('hex');
-    db.passwordResets.push({
-      token,
-      userId: user.id,
-      email: user.email,
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
-      used: false,
-      createdAt: new Date().toISOString()
-    });
+    user.resetTokenHash = hashToken(token);
+    user.resetTokenExpires = Date.now() + RESET_TOKEN_TTL_MS;
     writeDB(db);
 
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}`;
     try {
-      await sendMail({
-        to: user.email,
-        subject: 'Reset your Novanest HR password',
-        html: `
-          <p>Hi ${user.name || ''},</p>
-          <p>Someone requested a password reset for your Novanest HR account. Click below to choose a new password. This link expires in 1 hour and can only be used once.</p>
-          <p><a href="${resetUrl}" style="display:inline-block; padding:10px 18px; background:#03A9E7; color:#fff; text-decoration:none; border-radius:6px;">Reset password</a></p>
-          <p>Or copy this link: ${resetUrl}</p>
-          <p>If you didn't request this, you can safely ignore this email — your password won't change.</p>
-        `,
-        text: `Reset your Novanest HR password: ${resetUrl} (expires in 1 hour, one-time use)`
-      });
+      await sendPasswordResetEmail(user.email, token);
     } catch (err) {
-      console.error('[auth] Failed to send password reset email:', err.message);
-      // Don't leak the failure to the client — still return the generic message.
+      console.error('Failed to send password reset email:', err.message);
+      // Don't reveal delivery failures to the caller — same generic response either way.
     }
   }
 
-  res.json(generic);
+  res.json({ message: genericMessage });
 });
 
-// Anyone with a valid, unexpired, unused token: set a new password.
+// Step 2: employee submits the token from their email link plus a new password.
 router.post('/reset-password', (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword || newPassword.trim().length < 6) {
+  const { token, password } = req.body;
+  if (!token || !password || String(password).trim().length < 6) {
     return res.status(400).json({ error: 'A valid token and a password of at least 6 characters are required' });
   }
+
   const db = readDB();
-  const record = db.passwordResets.find(r => r.token === token);
-  if (!record || record.used || new Date(record.expiresAt) < new Date()) {
+  const tokenHash = hashToken(String(token));
+  const user = db.users.find(u => u.resetTokenHash === tokenHash);
+
+  if (!user || !user.resetTokenExpires || user.resetTokenExpires < Date.now()) {
     return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
   }
-  const user = db.users.find(u => u.id === record.userId);
-  if (!user) {
-    return res.status(400).json({ error: 'Account not found' });
-  }
 
-  user.password = bcrypt.hashSync(newPassword.trim(), 8);
-  record.used = true;
+  user.password = bcrypt.hashSync(String(password).trim(), 8);
+  delete user.resetTokenHash;
+  delete user.resetTokenExpires;
   writeDB(db);
-  res.json({ ok: true });
+
+  res.json({ message: 'Your password has been updated. You can now sign in.' });
 });
 
 module.exports = router;

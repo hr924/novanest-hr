@@ -21,6 +21,9 @@ async function init() {
     e.preventDefault();
     document.getElementById('myAccountForm').reset();
     document.getElementById('myAccountName').value = CURRENT_USER.name;
+    const isEmployee = CURRENT_USER.role === 'employee';
+    document.getElementById('myAccountPasswordWrap').style.display = isEmployee ? 'none' : 'block';
+    document.getElementById('myAccountPasswordHint').style.display = isEmployee ? 'block' : 'none';
     document.getElementById('myAccountModal').classList.add('show');
   });
   document.getElementById('myAccountForm').addEventListener('submit', async (e) => {
@@ -246,8 +249,8 @@ async function renderTimesheets() {
           ['Week starting', 'Working hours', 'Leave/Holiday', 'Status', 'Manager decision', ''],
           timesheets.map(t => [
             fmtDate(t.weekStarting),
-            t.totalWorkingHours ?? t.totalHours ?? 0,
-            t.totalLeaveHours ?? 0,
+            t.totalHours,
+            t.totalLeaveHours || 0,
             pill(t.status),
             t.status === 'submitted' || t.status === 'approved' || t.status === 'rejected'
               ? `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`
@@ -263,10 +266,11 @@ async function renderTimesheets() {
   `;
 }
 
-function mostRecentSunday() {
+function mostRecentMonday() {
   const d = new Date();
   const day = d.getDay(); // 0 = Sunday .. 6 = Saturday
-  d.setDate(d.getDate() - day);
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -281,14 +285,6 @@ function timesheetWeekDates(weekStarting) {
   return dates;
 }
 
-function timesheetDayLabel(date) {
-  const d = new Date(date + 'T00:00:00');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mon = d.toLocaleDateString('en-US', { month: 'short' });
-  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-  return { dateLabel: `${dd}-${mon}`, dayName };
-}
-
 let TS_CURRENT_ID = null;
 let TS_CURRENT_ENTRIES = [];
 
@@ -298,60 +294,78 @@ function openTimesheetModal(id) {
   TS_CURRENT_ENTRIES = ts ? ts.entries : [];
   document.getElementById('timesheetForm').reset();
   document.getElementById('timesheetModalTitle').textContent = ts ? 'Edit timesheet' : 'Fill timesheet';
-  document.getElementById('tsWeekStart').value = ts ? ts.weekStarting : mostRecentSunday();
+  document.getElementById('tsWeekStart').value = ts ? ts.weekStarting : mostRecentMonday();
   document.getElementById('tsNotes').value = ts ? (ts.notes || '') : '';
   renderTimesheetEntryRows();
   document.getElementById('timesheetModal').classList.add('show');
 }
 
+const TS_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thr', 'Fri', 'Sat'];
+
+function tsShortDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mon = d.toLocaleString('en-US', { month: 'short' });
+  return `${dd}-${mon}`;
+}
+
+// Days-as-columns grid: Date/day, Project, Working hours, Leave/Holiday — with an
+// auto-calculated "Total" column, matching the required timesheet layout.
 function renderTimesheetEntryRows() {
   const weekStart = document.getElementById('tsWeekStart').value;
   const container = document.getElementById('tsEntriesContainer');
   if (!weekStart) { container.innerHTML = ''; return; }
   const dates = timesheetWeekDates(weekStart);
-  const findEntry = (date) => TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
-
   container.innerHTML = `
-    <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:760px;">
       <tr>
-        <th style="text-align:left; padding:4px 6px; width:110px;">Date/day</th>
-        ${dates.map(date => {
-          const { dateLabel, dayName } = timesheetDayLabel(date);
-          return `<th style="text-align:center; padding:4px 6px;">${dateLabel}<br><span class="muted" style="font-weight:400;">${dayName}</span></th>`;
-        }).join('')}
-        <th style="text-align:center; padding:4px 6px; width:56px;">Total</th>
+        <th style="text-align:left; padding:4px 6px; white-space:nowrap;">Date/day</th>
+        ${dates.map((date, i) => `<th style="text-align:center; padding:4px 6px; white-space:nowrap;">${tsShortDate(date)}<br><span class="muted" style="font-weight:400;">${TS_DAY_NAMES[new Date(date + 'T00:00:00').getDay()]}</span></th>`).join('')}
+        <th style="text-align:center; padding:4px 6px;">Total</th>
       </tr>
       <tr>
         <td style="padding:4px 6px; font-weight:600;">Project</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsProject${i}" value="${escapeHtml(findEntry(date).project || '')}" style="margin:0; width:100%; padding:4px 6px;" placeholder="Project"></td>`).join('')}
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td style="padding:4px 6px;"><input id="tsProject${i}" value="${escapeHtml(existing.project || '')}" style="margin:0; width:100px;" placeholder="Project"></td>`;
+        }).join('')}
         <td></td>
       </tr>
       <tr>
         <td style="padding:4px 6px; font-weight:600;">Working hours</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${findEntry(date).workingHours || 0}" style="margin:0; width:100%; padding:4px 6px;" oninput="updateTimesheetTotals()"></td>`).join('')}
-        <td style="text-align:center; font-weight:600;" id="tsWorkTotal">0</td>
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td style="padding:4px 6px;"><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.workHours || 0}" style="margin:0; width:70px;" oninput="updateTimesheetTotal()"></td>`;
+        }).join('')}
+        <td style="padding:4px 6px; text-align:center; font-weight:600;" id="tsWorkTotalCell">0</td>
       </tr>
       <tr>
         <td style="padding:4px 6px; font-weight:600;">Leave/Holiday</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${findEntry(date).leaveHours || 0}" style="margin:0; width:100%; padding:4px 6px;" oninput="updateTimesheetTotals()"></td>`).join('')}
-        <td style="text-align:center; font-weight:600;" id="tsLeaveTotal">0</td>
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td style="padding:4px 6px;"><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.leaveHours || 0}" style="margin:0; width:70px;" oninput="updateTimesheetTotal()"></td>`;
+        }).join('')}
+        <td style="padding:4px 6px; text-align:center; font-weight:600;" id="tsLeaveTotalCell">0</td>
       </tr>
     </table>
   `;
-  updateTimesheetTotals();
+  updateTimesheetTotal();
 }
 
-function updateTimesheetTotals() {
-  let work = 0, leave = 0;
+function updateTimesheetTotal() {
+  let workTotal = 0, leaveTotal = 0;
   for (let i = 0; i < 7; i++) {
-    const w = document.getElementById('tsWorkHours' + i);
-    const l = document.getElementById('tsLeaveHours' + i);
-    if (w) work += Number(w.value) || 0;
-    if (l) leave += Number(l.value) || 0;
+    const workEl = document.getElementById('tsWorkHours' + i);
+    const leaveEl = document.getElementById('tsLeaveHours' + i);
+    if (workEl) workTotal += Number(workEl.value) || 0;
+    if (leaveEl) leaveTotal += Number(leaveEl.value) || 0;
   }
-  document.getElementById('tsWorkTotal').textContent = work;
-  document.getElementById('tsLeaveTotal').textContent = leave;
-  document.getElementById('tsTotalHours').innerHTML = `Working: <strong>${work}</strong> &nbsp;·&nbsp; Leave/Holiday: <strong>${leave}</strong>`;
+  document.getElementById('tsTotalHours').textContent = workTotal;
+  document.getElementById('tsTotalLeave').textContent = leaveTotal;
+  const workCell = document.getElementById('tsWorkTotalCell');
+  const leaveCell = document.getElementById('tsLeaveTotalCell');
+  if (workCell) workCell.textContent = workTotal;
+  if (leaveCell) leaveCell.textContent = leaveTotal;
 }
 
 function collectTimesheetEntries() {
@@ -359,9 +373,9 @@ function collectTimesheetEntries() {
   return timesheetWeekDates(weekStart).map((date, i) => ({
     date,
     project: document.getElementById('tsProject' + i).value.trim(),
-    workingHours: Number(document.getElementById('tsWorkHours' + i).value) || 0,
+    workHours: Number(document.getElementById('tsWorkHours' + i).value) || 0,
     leaveHours: Number(document.getElementById('tsLeaveHours' + i).value) || 0
-  })).filter(e => e.project || e.workingHours > 0 || e.leaveHours > 0);
+  })).filter(e => e.project || e.workHours > 0 || e.leaveHours > 0);
 }
 
 async function saveTimesheetDraft() {
@@ -650,8 +664,9 @@ async function toggleWorkflowStep(workflowId, stepId, done) {
 /* ---------------- Team approvals (manager only) ---------------- */
 async function renderTeamApprovals() {
   const { leave } = await api('/leave');
-  const { timesheets } = await api('/timesheets/team');
+  const { timesheets } = await api('/timesheets');
   TS_CACHE = timesheets;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'submitted');
   document.getElementById('main').innerHTML = `
     <h1>Team approvals</h1>
     <div class="subtitle">Leave requests and timesheets from people who report to you.</div>
@@ -674,9 +689,7 @@ async function renderTeamApprovals() {
       ${timesheets.length === 0 ? emptyState('No timesheets from your team yet') : renderTable(
         ['Employee', 'Week starting', 'Working hours', 'Leave/Holiday', 'Status', ''],
         timesheets.map(t => [
-          escapeHtml(t.employeeName), fmtDate(t.weekStarting),
-          t.totalWorkingHours ?? t.totalHours ?? 0, t.totalLeaveHours ?? 0,
-          pill(t.status),
+          escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours, t.totalLeaveHours || 0, pill(t.status),
           t.status === 'submitted' ? `<span class="section-actions">
             <button class="btn btn-ghost btn-sm" onclick="viewTeamTimesheet(${t.id})">View</button>
             <button class="btn btn-primary btn-sm" onclick="managerDecideTimesheet(${t.id}, 'approved')">Approve</button>
@@ -691,11 +704,8 @@ async function renderTeamApprovals() {
 function viewTeamTimesheet(id) {
   const ts = TS_CACHE.find(t => t.id === id);
   if (!ts) return;
-  const rows = (ts.entries || [])
-    .filter(e => e.project || e.workingHours || e.leaveHours)
-    .map(e => `${fmtDate(e.date)}: ${e.project || '—'} — worked ${e.workingHours || 0}h, leave ${e.leaveHours || 0}h`)
-    .join('\n');
-  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalWorkingHours ?? ts.totalHours ?? 0}h · Leave/Holiday: ${ts.totalLeaveHours ?? 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} — Work ${e.workHours || 0}h / Leave ${e.leaveHours || 0}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalHours}h  |  Leave/Holiday: ${ts.totalLeaveHours || 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
 }
 
 async function managerDecideTimesheet(id, status, comment) {

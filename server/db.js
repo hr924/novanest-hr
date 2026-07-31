@@ -78,8 +78,7 @@ function defaultData() {
     surveyResponses: [],
     kbArticles: [],
     workflows: [],
-    timesheets: [],
-    passwordResets: []
+    timesheets: []
   };
 }
 
@@ -110,7 +109,6 @@ function migrate(data) {
   ensureArray('kbArticles');
   ensureArray('workflows');
   ensureArray('timesheets');
-  ensureArray('passwordResets');
   if (!data.nextId) data.nextId = {};
   ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets'].forEach((key) => {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
