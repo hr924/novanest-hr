@@ -28,7 +28,30 @@ npm start
 
 The server starts at **http://localhost:3000**.
 
-## ⚠️ Updating the app without losing your data
+## Password reset emails (forgot password)
+
+Employees can reset a forgotten password from the login page ("Forgot
+password?"). This sends a one-time reset link by email, so it needs SMTP
+credentials — set these environment variables before starting the server:
+
+```bash
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-username
+SMTP_PASS=your-smtp-password-or-api-key
+SMTP_FROM="Novanest HR <hr@yourcompany.com>"
+npm start
+```
+
+- Use `SMTP_PORT=465` with `SMTP_SECURE=true` if your provider requires SSL
+  instead of STARTTLS.
+- Works with any standard SMTP provider — Gmail (with an app password),
+  SendGrid, Mailgun, Amazon SES, your company's own mail server, etc.
+- If these aren't set, the app still runs fine — the reset request is
+  accepted and logged to the server console, but no email actually goes
+  out. Reset links expire after 1 hour and can only be used once.
+
+
 
 All employee/payroll data lives in one file: `data/db.json`. That file is
 **not** part of the app's source code, so whenever you receive an updated

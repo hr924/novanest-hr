@@ -724,16 +724,24 @@ async function renderTimesheetsAdmin() {
   TS_ADMIN_CACHE = timesheets;
   document.getElementById('main').innerHTML = `
     <h1>Timesheets</h1>
-    <div class="subtitle">Manager-approved weekly timesheets across the company. Approval happens in the employee's manager portal — this is a read-only record of timesheets a manager has already signed off on.</div>
+    <div class="subtitle">Weekly timesheets across the company, and their manager-approval status.</div>
     <div class="panel">
-      <div class="panel-header"><h2>Approved timesheets</h2></div>
+      <div class="panel-header"><h2>All timesheets</h2></div>
       <div class="panel-body">
-        ${timesheets.length === 0 ? emptyState('No manager-approved timesheets yet') : renderTable(
-          ['Employee', 'Week starting', 'Working hours', 'Leave/Holiday', 'Status', ''],
+        ${timesheets.length === 0 ? emptyState('No timesheets submitted yet') : renderTable(
+          ['Employee', 'Week starting', 'Total hours', 'Status', 'Manager decision', ''],
           timesheets.map(t => [
-            escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours, t.totalLeaveHours || 0,
+            escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours,
             pill(t.status),
-            `<button class="btn btn-ghost btn-sm" onclick="viewAdminTimesheet(${t.id})">View</button>`
+            t.status === 'draft' ? '<span class="muted">—</span>'
+              : `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`,
+            `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="viewAdminTimesheet(${t.id})">View</button>
+              ${t.status === 'submitted' ? `
+                <button class="btn btn-primary btn-sm" onclick="adminDecideTimesheet(${t.id}, 'approved')">Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDecideTimesheetPrompt(${t.id})">Decline</button>
+              ` : ''}
+            </span>`
           ])
         )}
       </div>
@@ -744,8 +752,21 @@ async function renderTimesheetsAdmin() {
 function viewAdminTimesheet(id) {
   const ts = TS_ADMIN_CACHE.find(t => t.id === id);
   if (!ts) return;
-  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} — Work ${e.workHours || 0}h / Leave ${e.leaveHours || 0}h`).join('\n');
-  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalHours}h  |  Leave/Holiday: ${ts.totalLeaveHours || 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} / ${e.task || '—'} — ${e.hours}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nTotal: ${ts.totalHours}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+}
+
+async function adminDecideTimesheet(id, status, comment) {
+  try {
+    await api(`/timesheets/${id}/manager-status`, { method: 'PUT', body: { status, comment: comment || '' } });
+    toast('Decision recorded');
+    renderTimesheetsAdmin();
+  } catch (err) { toast(err.message, true); }
+}
+
+function adminDecideTimesheetPrompt(id) {
+  const comment = prompt('Reason for declining this timesheet (optional):') || '';
+  adminDecideTimesheet(id, 'rejected', comment);
 }
 
 /* ---------------- Attendance ---------------- */
