@@ -28,7 +28,52 @@ npm start
 
 The server starts at **http://localhost:3000**.
 
-## ⚠️ Updating the app without losing your data
+## Password reset emails (forgot password)
+
+Employees can reset a forgotten password from the login page ("Forgot
+password?"). This sends a one-time reset link by email, so it needs SMTP
+credentials — set these environment variables before starting the server:
+
+```bash
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-username
+SMTP_PASS=your-smtp-password-or-api-key
+SMTP_FROM="Novanest HR <hr@yourcompany.com>"
+npm start
+```
+
+- Use `SMTP_PORT=465` with `SMTP_SECURE=true` if your provider requires SSL
+  instead of STARTTLS.
+- Works with any standard SMTP provider — Gmail (with an app password),
+  SendGrid, Mailgun, Amazon SES, your company's own mail server, etc.
+- If these aren't set, the app still runs fine — the reset request is
+  accepted and logged to the server console, but no email actually goes
+  out. Reset links expire after 1 hour and can only be used once.
+
+### Mobile OTP reset (alternative to email)
+
+The "Forgot password" page also has a **Reset by mobile OTP** tab, for
+resetting via a 4-digit SMS code sent to the mobile number saved on the
+employee's profile (`Admin → Employees → phone field`). This uses MSG91:
+
+```bash
+MSG91_AUTH_KEY=your-msg91-auth-key
+MSG91_TEMPLATE_ID=your-approved-template-id
+npm start
+```
+
+- MSG91 requires a **DLT-approved transactional SMS template** to send to
+  Indian numbers — this needs to be set up in your MSG91 account first.
+  The template must contain exactly one variable for the code itself, e.g.
+  `Your Novanest HR verification code is ##OTP##`. If your template uses a
+  different variable name than `OTP`, set `MSG91_OTP_VAR` to match it.
+- If these aren't set, OTP requests are accepted and logged to the server
+  console, but no SMS actually goes out.
+- Codes expire after 5 minutes, allow 5 incorrect attempts before locking,
+  and requests are limited to once per minute per number.
+
+
 
 All employee/payroll data lives in one file: `data/db.json`. That file is
 **not** part of the app's source code, so whenever you receive an updated

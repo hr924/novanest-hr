@@ -72,20 +72,16 @@
 
 <!-- Fill/edit timesheet modal -->
 <div class="modal-backdrop" id="timesheetModal">
-  <div class="modal" style="max-width:920px;">
+  <div class="modal" style="max-width:640px;">
     <div class="modal-head"><h3 id="timesheetModalTitle">Fill timesheet</h3><button class="modal-close" onclick="closeModal('timesheetModal')">&times;</button></div>
     <div class="modal-body">
       <form id="timesheetForm" onsubmit="return false;">
         <label for="tsWeekStart">Week starting (Monday)</label>
         <input id="tsWeekStart" type="date" required onchange="renderTimesheetEntryRows()">
-        <div id="tsEntriesContainer" style="margin-top:10px; overflow-x:auto;"></div>
+        <div id="tsEntriesContainer" style="margin-top:10px;"></div>
         <label for="tsNotes" style="margin-top:10px;">Notes (optional)</label>
         <textarea id="tsNotes"></textarea>
-        <div class="hint-box" style="margin-top:10px;">
-          Working hours this week: <strong id="tsTotalHours">0</strong>
-          &nbsp;&nbsp;|&nbsp;&nbsp;
-          Leave/Holiday hours this week: <strong id="tsTotalLeave">0</strong>
-        </div>
+        <div class="hint-box" style="margin-top:10px;"><span id="tsTotalHours">Working: <strong>0</strong> &nbsp;·&nbsp; Leave/Holiday: <strong>0</strong></span></div>
         <div style="display:flex; gap:8px; margin-top:14px;">
           <button class="btn btn-ghost" type="button" style="flex:1; justify-content:center;" onclick="saveTimesheetDraft()">Save as draft</button>
           <button class="btn btn-primary" type="button" style="flex:1; justify-content:center;" onclick="submitTimesheetForApproval()">Submit for approval</button>
@@ -103,12 +99,9 @@
       <form id="myAccountForm">
         <label for="myAccountName">Display name</label>
         <input id="myAccountName" required>
-        <div id="myAccountPasswordWrap">
-          <label for="myAccountPassword">New password (leave blank to keep current)</label>
-          <input id="myAccountPassword" placeholder="Leave blank to keep current password">
-        </div>
-        <p id="myAccountPasswordHint" style="display:none; font-size:12.5px; color: var(--ink-soft); margin:4px 0 0;">To change your password, use "Forgot password?" on the sign-in page.</p>
-        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:10px;">Save changes</button>
+        <label for="myAccountPassword">New password (leave blank to keep current)</label>
+        <input id="myAccountPassword" placeholder="Leave blank to keep current password">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Save changes</button>
       </form>
     </div>
   </div>
