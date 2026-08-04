@@ -352,7 +352,7 @@ async function renderEmployees(refetch) {
             e.status === 'inactive'
               ? `${pill(e.status)}${e.inactiveReason ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(e.inactiveReason)}</span>` : ''}`
               : pill(e.status),
-            e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span> <button class="btn btn-ghost btn-sm" onclick="resetLoginPasswordFor(${e.id})">Reset password</button>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
+            e.hasLogin ? `${pill('active')} <span class="muted" style="font-size:11px;">(${escapeHtml(e.loginRole || 'employee')})</span>` : `<button class="btn btn-ghost btn-sm" onclick="createLoginFor(${e.id})">Create login</button>`,
             `<span class="section-actions">
               <button class="btn btn-ghost btn-sm" onclick="openEmpModal(${e.id})">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Remove</button>
@@ -414,6 +414,7 @@ async function openEmpModal(id) {
   document.getElementById('empModalTitle').textContent = 'Add employee';
   document.getElementById('loginPasswordWrap').style.display = 'none';
   document.getElementById('loginFieldsWrap').style.display = 'block';
+  document.getElementById('existingLoginWrap').style.display = 'none';
   document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('empDeptOther').style.display = 'none';
   document.getElementById('empPositionOther').style.display = 'none';
@@ -475,8 +476,12 @@ async function openEmpModal(id) {
     document.getElementById('empBankAccount').value = emp.bankAccountNumber || '';
     document.getElementById('empBankIfsc').value = emp.bankIFSC || '';
     document.getElementById('empModalTitle').textContent = 'Edit employee — ' + (emp.employeeCode || '');
-    // Login accounts for existing employees are managed from the roster table, not this form.
-    document.getElementById('loginFieldsWrap').style.display = 'none';
+    // Login accounts for existing employees are managed via the Reset password
+    // button below, not the create-login checkbox (that's for employees who
+    // don't have a login yet).
+    document.getElementById('loginFieldsWrap').style.display = emp.hasLogin ? 'none' : 'block';
+    document.getElementById('existingLoginWrap').style.display = emp.hasLogin ? 'block' : 'none';
+    document.getElementById('existingLoginResetBtn').onclick = () => resetLoginPasswordFor(emp.id);
 
     if (emp.profilePhoto) {
       document.getElementById('empPhotoPreview').src = emp.profilePhoto;
