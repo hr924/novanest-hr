@@ -191,7 +191,7 @@ function buildPayslipHTML(p, autoPrint) {
       <td class="ps-key">LOP Days</td><td>${p.lopDays ?? 0}</td>
     </tr>
     <tr>
-      <td class="ps-key">Department</td><td>${p.department || '—'}</td>
+      <td class="ps-key">Designation</td><td>${p.designation || '—'}</td>
       <td class="ps-key">STD Days</td><td>${p.stdDays ?? '—'}</td>
     </tr>
     <tr>
