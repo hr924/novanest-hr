@@ -45,12 +45,13 @@ async function init() {
   document.getElementById('leaveForm').addEventListener('submit', submitLeave);
   document.getElementById('caseForm').addEventListener('submit', submitCase);
 
-  await switchView('profile');
+  await switchView('dashboard');
 }
 
 async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
+    dashboard: renderDashboard,
     profile: renderProfile, attendance: renderAttendance, leave: renderLeave,
     timesheets: renderTimesheets,
     payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
@@ -71,6 +72,147 @@ function emptyState(msg) { return `<div class="empty-state"><div class="glyph">�
 function renderTable(headers, rows) {
   return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
   <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+/* ---------------- Dashboard ---------------- */
+let OVERVIEW_CHARTS = { bar: null, donut: null };
+
+async function renderDashboard() {
+  const main = document.getElementById('main');
+  const [attendanceRes, leaveRes, tasksRes, casesRes] = await Promise.all([
+    api('/attendance').catch(() => ({ attendance: [] })),
+    api('/leave').catch(() => ({ leave: [] })),
+    api('/tasks').catch(() => ({ tasks: [] })),
+    api('/cases').catch(() => ({ cases: [] }))
+  ]);
+  const attendance = attendanceRes.attendance || [];
+  const leave = leaveRes.leave || [];
+  const tasks = tasksRes.tasks || [];
+  const cases = casesRes.cases || [];
+
+  const now = new Date();
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const presentThisMonth = attendance.filter(a => a.date.startsWith(monthPrefix)).length;
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr').length;
+  const pendingTasks = tasks.filter(t => t.status !== 'done').length;
+  const openCases = cases.filter(c => c.status !== 'resolved').length;
+
+  const dow = now.getDay();
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0, 0, 0, 0);
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(monday); d.setDate(monday.getDate() + i); weekDays.push(d.toISOString().slice(0, 10)); }
+  const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekCounts = weekDays.map(ds => attendance.some(a => a.date === ds) ? 1 : 0);
+
+  const leaveTypeColors = { Vacation: '#6C5DD3', Sick: '#2ED47A', Personal: '#5B8DEF', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const typeCounts = {};
+  leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
+  const leaveTypes = Object.keys(typeCounts);
+  const leaveTotal = leave.length;
+
+  const activity = [];
+  leave.slice(0, 3).forEach(l => activity.push({ text: `${l.type} leave request — ${l.overallStatus.replace('-', ' ')}`, date: l.requestedDate || l.startDate, icon: 'leave' }));
+  tasks.slice(0, 3).forEach(t => activity.push({ text: `Task assigned: ${t.title}`, date: t.assignedDate || t.dueDate, icon: 'tasks' }));
+  attendance.slice(0, 2).forEach(a => activity.push({ text: `Checked in — ${fmtDate(a.date)}`, date: a.date, icon: 'attendance' }));
+  activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const activityHtml = activity.slice(0, 6).map(a => `
+    <div class="activity-item">
+      <div class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[a.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div><div class="a-text">${escapeHtml(a.text)}</div><div class="a-time">${fmtDate(a.date)}</div></div>
+    </div>`).join('') || emptyState('No recent activity yet');
+
+  main.innerHTML = `
+    <div class="main-head">
+      <div><h1>Dashboard</h1><div class="subtitle">Welcome back, ${escapeHtml((CURRENT_USER.name || '').split(' ')[0] || '')}.</div></div>
+      <div class="head-action"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.attendance}</svg></div></div>
+        <div class="num">${presentThisMonth}</div><div class="label">Present Days (This Month)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.leave}</svg></div></div>
+        <div class="num">${pendingLeave}</div><div class="label">Leave Requests Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.tasks}</svg></div></div>
+        <div class="num">${pendingTasks}</div><div class="label">Tasks Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.cases}</svg></div></div>
+        <div class="num">${openCases}</div><div class="label">Open Cases</div>
+      </div>
+    </div>
+
+    <div class="dash-grid-2">
+      <div class="chart-card">
+        <div class="chart-card-head"><h3>Attendance Overview</h3><span class="chip">This Week</span></div>
+        <div class="chart-wrap"><canvas id="attendanceChart"></canvas></div>
+      </div>
+      <div class="chart-card donut-wrap">
+        <div class="chart-card-head" style="width:100%;"><h3>Leave Summary</h3></div>
+        <div class="donut-canvas-holder">
+          <canvas id="leaveDonut"></canvas>
+          <div class="donut-center"><div class="n">${leaveTotal}</div><div class="t">Total</div></div>
+        </div>
+        <div class="donut-legend">
+          ${leaveTypes.length === 0 ? `<div class="muted" style="font-size:12.5px; text-align:center;">No leave requests yet</div>` : leaveTypes.map(t => `
+            <div class="li"><div class="k"><span class="dot" style="background:${leaveTypeColors[t] || '#8D8BA7'}"></span>${escapeHtml(t)}</div><div class="v">${typeCounts[t]}</div></div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid-bottom">
+      <div class="activity-card">
+        <h3>Recent Activities</h3>
+        ${activityHtml}
+      </div>
+      <div class="ai-card">
+        <div>
+          <h3>AI Ask - Your HR Assistant</h3>
+          <p>Get instant answers to HR policies, leave balance, payroll, and more.</p>
+        </div>
+        <button class="btn-ai" onclick="switchView('knowledgebase');">Ask Now →</button>
+      </div>
+    </div>
+  `;
+
+  drawOverviewCharts(weekLabels, weekCounts, leaveTypes, leaveTypes.map(t => typeCounts[t]), leaveTypes.map(t => leaveTypeColors[t] || '#8D8BA7'));
+}
+
+function drawOverviewCharts(weekLabels, weekCounts, donutLabels, donutData, donutColors) {
+  if (typeof Chart === 'undefined') return;
+  if (OVERVIEW_CHARTS.bar) OVERVIEW_CHARTS.bar.destroy();
+  if (OVERVIEW_CHARTS.donut) OVERVIEW_CHARTS.donut.destroy();
+
+  const barCtx = document.getElementById('attendanceChart');
+  if (barCtx) {
+    OVERVIEW_CHARTS.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: { labels: weekLabels, datasets: [{ data: weekCounts, backgroundColor: '#8C7EF2', borderRadius: 6, maxBarThickness: 34 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#ECEBF6' }, ticks: { color: '#8D8BA7', font: { size: 11 }, stepSize: 1 } },
+          x: { grid: { display: false }, ticks: { color: '#8D8BA7', font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  const donutCtx = document.getElementById('leaveDonut');
+  if (donutCtx && donutData.length) {
+    OVERVIEW_CHARTS.donut = new Chart(donutCtx, {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+    });
+  }
 }
 
 /* ---------------- Profile ---------------- */

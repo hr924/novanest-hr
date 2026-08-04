@@ -123,26 +123,123 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('show');
 }
 
-/* ---------------- Overview ---------------- */
+/* ---------------- Overview / Dashboard ---------------- */
+let OVERVIEW_CHARTS = { bar: null, donut: null };
+
 async function renderOverview() {
-  const [{ jobs }, { applications }, { employees }, { leave }] = await Promise.all([
-    api('/jobs?all=1'), api('/applications'), api('/employees'), api('/leave')
+  const [{ jobs }, { applications }, { employees }, { leave }, attendanceRes, timesheetsRes] = await Promise.all([
+    api('/jobs?all=1'), api('/applications'), api('/employees'), api('/leave'),
+    api('/attendance').catch(() => ({ attendance: [] })),
+    api('/timesheets').catch(() => ({ timesheets: [] }))
   ]);
-  CACHE = { ...CACHE, jobs, applications, employees, leave };
+  const attendance = attendanceRes.attendance || [];
+  const timesheets = timesheetsRes.timesheets || [];
+  CACHE = { ...CACHE, jobs, applications, employees, leave, attendance };
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeEmployees = employees.filter(e => e.status === 'active');
+  const presentToday = new Set(attendance.filter(a => a.date === todayStr).map(a => a.employeeId)).size;
+  const onLeaveToday = leave.filter(l => l.overallStatus === 'approved' && l.startDate <= todayStr && l.endDate >= todayStr).length;
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr').length;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'submitted').length;
+  const pendingApprovals = pendingLeave + pendingTimesheets;
   const openJobs = jobs.filter(j => j.status === 'open').length;
-  const pendingApps = applications.filter(a => ['applied', 'screening', 'interview'].includes(a.status)).length;
-  const pendingLeave = leave.filter(l => l.status === 'pending').length;
+
+  // ---- Attendance overview: check-ins per day for the current week (Mon-Sun) ----
+  const now = new Date();
+  const dow = now.getDay(); // 0 = Sun
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0, 0, 0, 0);
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    weekDays.push(d.toISOString().slice(0, 10));
+  }
+  const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekCounts = weekDays.map(ds => new Set(attendance.filter(a => a.date === ds).map(a => a.employeeId)).size);
+
+  // ---- Leave summary: breakdown by type across all requests ----
+  const leaveTypeColors = { Vacation: '#6C5DD3', Sick: '#2ED47A', Personal: '#5B8DEF', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const typeCounts = {};
+  leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
+  const leaveTypes = Object.keys(typeCounts);
+  const leaveTotal = leave.length;
+
+  // ---- Recent activity feed, newest first across a few sources ----
+  const activity = [];
+  applications.slice(0, 3).forEach(a => activity.push({ text: `${a.candidateName} applied for ${a.jobTitle}`, date: a.appliedDate, icon: 'jobs' }));
+  leave.slice(0, 3).forEach(l => activity.push({ text: `${l.employeeName} requested ${l.type} leave`, date: l.requestedDate || l.startDate, icon: 'leave' }));
+  [...employees].sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate)).slice(0, 2).forEach(e => activity.push({ text: `${e.name} joined as ${e.position}`, date: e.joinDate, icon: 'employees' }));
+  activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const activityHtml = activity.slice(0, 6).map(a => `
+    <div class="activity-item">
+      <div class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[a.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div><div class="a-text">${escapeHtml(a.text)}</div><div class="a-time">${fmtDate(a.date)}</div></div>
+    </div>`).join('') || emptyState('No recent activity yet');
 
   document.getElementById('main').innerHTML = `
-    <h1>Overview</h1>
-    <div class="subtitle">Snapshot of recruitment and workforce activity.</div>
-    <div class="stat-row">
-      <div class="stat-card"><div class="num">${openJobs}</div><div class="label">Open positions</div></div>
-      <div class="stat-card"><div class="num">${pendingApps}</div><div class="label">Active applications</div></div>
-      <div class="stat-card"><div class="num">${employees.length}</div><div class="label">Employees</div></div>
-      <div class="stat-card"><div class="num">${pendingLeave}</div><div class="label">Leave requests pending</div></div>
+    <div class="main-head">
+      <div><h1>Dashboard</h1><div class="subtitle">Snapshot of recruitment and workforce activity.</div></div>
+      <div class="head-action"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></div>
     </div>
-    <div class="filetab">Recent applications</div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.employees}</svg></div></div>
+        <div class="num">${employees.length}</div><div class="label">Total Employees</div>
+        <div class="delta up">↑ ${activeEmployees.length} active</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.attendance}</svg></div></div>
+        <div class="num">${presentToday}</div><div class="label">Present Today</div>
+        <div class="delta info">${employees.length ? Math.round((presentToday / employees.length) * 100) : 0}% of total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.leave}</svg></div></div>
+        <div class="num">${onLeaveToday}</div><div class="label">On Leave</div>
+        <div class="delta info">${employees.length ? Math.round((onLeaveToday / employees.length) * 100) : 0}% of total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-top"><div class="stat-icon i-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.applications}</svg></div></div>
+        <div class="num">${pendingApprovals}</div><div class="label">Pending Approvals</div>
+        <div class="delta"><a href="#" data-view="leave" onclick="switchView('leave'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='leave')); return false;">View all</a></div>
+      </div>
+    </div>
+
+    <div class="dash-grid-2">
+      <div class="chart-card">
+        <div class="chart-card-head"><h3>Attendance Overview</h3><span class="chip">This Week</span></div>
+        <div class="chart-wrap"><canvas id="attendanceChart"></canvas></div>
+      </div>
+      <div class="chart-card donut-wrap">
+        <div class="chart-card-head" style="width:100%;"><h3>Leave Summary</h3></div>
+        <div class="donut-canvas-holder">
+          <canvas id="leaveDonut"></canvas>
+          <div class="donut-center"><div class="n">${leaveTotal}</div><div class="t">Total</div></div>
+        </div>
+        <div class="donut-legend">
+          ${leaveTypes.length === 0 ? `<div class="muted" style="font-size:12.5px; text-align:center;">No leave data yet</div>` : leaveTypes.map(t => `
+            <div class="li"><div class="k"><span class="dot" style="background:${leaveTypeColors[t] || '#8D8BA7'}"></span>${escapeHtml(t)}</div><div class="v">${typeCounts[t]}</div></div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid-bottom">
+      <div class="activity-card">
+        <h3>Recent Activities</h3>
+        ${activityHtml}
+      </div>
+      <div class="ai-card">
+        <div>
+          <h3>AI Ask - Your HR Assistant</h3>
+          <p>Get instant answers to HR policies, leave balance, payroll, and more.</p>
+        </div>
+        <button class="btn-ai" onclick="switchView('knowledgebase'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='knowledgebase'));">Ask Now →</button>
+      </div>
+    </div>
+
+    <div class="filetab" style="margin-top:22px;">Recent applications</div>
     <div class="panel" style="border-top-left-radius:0;">
       <div class="panel-body">
         ${applications.length === 0 ? emptyState('No applications yet') : renderTable(
@@ -152,6 +249,42 @@ async function renderOverview() {
       </div>
     </div>
   `;
+
+  drawOverviewCharts(weekLabels, weekCounts, leaveTypes, leaveTypes.map(t => typeCounts[t]), leaveTypes.map(t => leaveTypeColors[t] || '#8D8BA7'));
+}
+
+function drawOverviewCharts(weekLabels, weekCounts, donutLabels, donutData, donutColors) {
+  if (typeof Chart === 'undefined') return;
+  if (OVERVIEW_CHARTS.bar) OVERVIEW_CHARTS.bar.destroy();
+  if (OVERVIEW_CHARTS.donut) OVERVIEW_CHARTS.donut.destroy();
+
+  const barCtx = document.getElementById('attendanceChart');
+  if (barCtx) {
+    OVERVIEW_CHARTS.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: weekLabels,
+        datasets: [{ data: weekCounts, backgroundColor: '#8C7EF2', borderRadius: 6, maxBarThickness: 34 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#ECEBF6' }, ticks: { color: '#8D8BA7', font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { color: '#8D8BA7', font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  const donutCtx = document.getElementById('leaveDonut');
+  if (donutCtx && donutData.length) {
+    OVERVIEW_CHARTS.donut = new Chart(donutCtx, {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+    });
+  }
 }
 
 function emptyState(msg) {
