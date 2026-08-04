@@ -105,7 +105,7 @@ async function renderDashboard() {
   const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const weekCounts = weekDays.map(ds => attendance.some(a => a.date === ds) ? 1 : 0);
 
-  const leaveTypeColors = { Vacation: '#6C5DD3', Sick: '#2ED47A', Personal: '#5B8DEF', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const leaveTypeColors = { Vacation: '#03A9E7', Sick: '#2ED47A', Personal: '#184B76', Bereavement: '#FF9F6B', Other: '#F0506E' };
   const typeCounts = {};
   leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
   const leaveTypes = Object.keys(typeCounts);
@@ -193,7 +193,7 @@ function drawOverviewCharts(weekLabels, weekCounts, donutLabels, donutData, donu
   if (barCtx) {
     OVERVIEW_CHARTS.bar = new Chart(barCtx, {
       type: 'bar',
-      data: { labels: weekLabels, datasets: [{ data: weekCounts, backgroundColor: '#8C7EF2', borderRadius: 6, maxBarThickness: 34 }] },
+      data: { labels: weekLabels, datasets: [{ data: weekCounts, backgroundColor: '#03A9E7', borderRadius: 6, maxBarThickness: 34 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },

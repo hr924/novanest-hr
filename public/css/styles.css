@@ -7,16 +7,16 @@
   --ink-soft: #8D8BA7;
   --line: #ECEBF6;
 
-  --purple: #6C5DD3;
-  --purple-light: #8C7EF2;
-  --purple-dark: #4E3FC4;
-  --ledger: #6C5DD3;
-  --ledger-dark: #4E3FC4;
+  --purple: #03A9E7;
+  --purple-light: #2BC1F5;
+  --purple-dark: #184B76;
+  --ledger: #03A9E7;
+  --ledger-dark: #184B76;
   --amber: #FF9F6B;
   --rust: #F0506E;
   --green: #2ED47A;
   --blue: #5B8DEF;
-  --tab-bg: #F1EEFC;
+  --tab-bg: #EAF6FD;
   --brand-gradient: linear-gradient(135deg, var(--purple-light), var(--purple-dark));
 
   --font-display: 'Fraunces', serif;
@@ -254,7 +254,7 @@ tr:last-child td { border-bottom: none; }
 }
 .pill-open, .pill-approved, .pill-hired, .pill-present, .pill-active { background: #E7F9EF; color: #1D9C5C; border-color: #C6EFD8; }
 .pill-applied, .pill-pending, .pill-screening, .pill-pending-manager, .pill-pending-hr { background: #FFF1E6; color: #C1671F; border-color: #FBDDC2; }
-.pill-interview, .pill-offer { background: #EEECFC; color: var(--purple-dark); border-color: #D9D4F5; }
+.pill-interview, .pill-offer { background: #EAF1FF; color: var(--blue); border-color: #CBD8F0; }
 .pill-rejected, .pill-closed, .pill-absent, .pill-inactive { background: #FDE9EC; color: var(--rust); border-color: #F8CCD4; }
 
 /* ---------- Forms ---------- */
@@ -422,7 +422,7 @@ textarea { resize: vertical; min-height: 80px; }
   flex-shrink: 0;
 }
 .stat-icon svg { width: 20px; height: 20px; }
-.stat-icon.i-purple { background: #EEECFC; color: var(--purple); }
+.stat-icon.i-purple { background: var(--tab-bg); color: var(--purple); }
 .stat-icon.i-green { background: #E4FBF0; color: #22B573; }
 .stat-icon.i-orange { background: #FFF0E6; color: #FF8A4C; }
 .stat-icon.i-blue { background: #EAF1FF; color: var(--blue); }
