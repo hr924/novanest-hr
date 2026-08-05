@@ -111,6 +111,7 @@ async function switchView(view) {
     backups: renderBackups
   };
   await renderers[view]();
+  restoreFormDraft(view);
 }
 
 function escapeHtml(str) {

@@ -20,6 +20,9 @@
     <div class="filetab">Sign in</div>
     <div class="panel" style="border-top-left-radius:0;">
       <div class="panel-body">
+        <div id="idleNotice" style="display:none; background:var(--tab-bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:12.5px; color: var(--purple-dark); margin-bottom:14px;">
+          You were signed out after 5 minutes of inactivity. Anything you were filling in has been saved.
+        </div>
         <form id="loginForm">
           <label for="email">Email or Employee ID</label>
           <input id="email" type="text" placeholder="you@company.com or NN001001" required>
@@ -36,6 +39,9 @@
 
 <script src="js/common.js?v=1785305713"></script>
 <script>
+if (new URLSearchParams(window.location.search).get('reason') === 'idle') {
+  document.getElementById('idleNotice').style.display = 'block';
+}
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {

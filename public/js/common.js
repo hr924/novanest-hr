@@ -272,3 +272,125 @@ async function downloadPayslip(id) {
     toast(err.message, true);
   }
 }
+
+/* ================================================================
+   Idle auto-logout — signs the user out after 5 minutes of no
+   mouse / keyboard / touch activity. Whatever they were typing in
+   the currently open view is saved to localStorage right before
+   the sign-out, then quietly restored the next time they land on
+   that same view (after logging back in) — so nothing is lost.
+   Only runs on the admin/employee app shell (pages with .dash),
+   never on the public careers page or the login screen itself.
+   ================================================================ */
+const IDLE_LOGOUT_MS = 5 * 60 * 1000;   // 5 minutes — do not set lower than this
+const IDLE_WARNING_MS = 30 * 1000;      // show the "still there?" prompt 30s beforehand
+const DRAFT_MAX_AGE_MS = 30 * 60 * 1000; // discard drafts older than 30 minutes
+
+let _idleTimer = null, _idleWarnTimer = null, _idleCountdownInt = null;
+
+function _currentViewName() {
+  return document.querySelector('.sidebar-link.active')?.dataset.view || 'unknown';
+}
+
+function saveFormDraft() {
+  try {
+    const main = document.getElementById('main');
+    if (!main) return;
+    const view = _currentViewName();
+    const fields = {};
+    main.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
+      if (el.type === 'password') return;
+      fields[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    if (Object.keys(fields).length === 0) return;
+    localStorage.setItem(`hrDraft:${view}`, JSON.stringify({ fields, savedAt: Date.now() }));
+  } catch (e) { /* best effort only */ }
+}
+
+function restoreFormDraft(view) {
+  try {
+    const key = `hrDraft:${view || _currentViewName()}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const { fields, savedAt } = JSON.parse(raw);
+    localStorage.removeItem(key);
+    if (Date.now() - savedAt > DRAFT_MAX_AGE_MS) return;
+    let restored = false;
+    Object.entries(fields).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = val; else el.value = val;
+      restored = true;
+    });
+    if (restored) toast('Restored what you were filling in before you were signed out.');
+  } catch (e) { /* ignore */ }
+}
+
+function _hideIdleWarning() {
+  const modal = document.getElementById('idleWarningModal');
+  if (modal) modal.classList.remove('show');
+  clearInterval(_idleCountdownInt);
+}
+
+function _showIdleWarning() {
+  let seconds = Math.round(IDLE_WARNING_MS / 1000);
+  let modal = document.getElementById('idleWarningModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'idleWarningModal';
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:360px;">
+        <div class="modal-head"><h3>Still there?</h3></div>
+        <div class="modal-body">
+          <p style="margin-top:0; color: var(--ink-soft); font-size:13.5px;">
+            You've been inactive for a while. For security you'll be signed out in
+            <strong id="idleCountdown">${seconds}</strong>s. Anything you're filling in will be saved.
+          </p>
+          <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="stayLoggedIn()">Stay signed in</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.classList.add('show');
+  clearInterval(_idleCountdownInt);
+  _idleCountdownInt = setInterval(() => {
+    seconds -= 1;
+    const el = document.getElementById('idleCountdown');
+    if (el) el.textContent = Math.max(seconds, 0);
+    if (seconds <= 0) clearInterval(_idleCountdownInt);
+  }, 1000);
+}
+
+async function _triggerAutoLogout() {
+  saveFormDraft();
+  _hideIdleWarning();
+  try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* ignore */ }
+  window.location.href = 'login.html?reason=idle';
+}
+
+function stayLoggedIn() {
+  resetIdleTimer();
+  api('/auth/me').catch(() => {}); // touches the session so the server-side cookie doesn't expire either
+}
+
+function resetIdleTimer() {
+  clearTimeout(_idleTimer);
+  clearTimeout(_idleWarnTimer);
+  _hideIdleWarning();
+  _idleWarnTimer = setTimeout(_showIdleWarning, IDLE_LOGOUT_MS - IDLE_WARNING_MS);
+  _idleTimer = setTimeout(_triggerAutoLogout, IDLE_LOGOUT_MS);
+}
+
+function initIdleAutoLogout() {
+  if (!document.querySelector('.dash')) return; // only inside the signed-in app shell
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach((evt) => {
+    document.addEventListener(evt, () => {
+      const warning = document.getElementById('idleWarningModal');
+      if (warning && warning.classList.contains('show')) return; // let the "stay signed in" button handle it
+      resetIdleTimer();
+    }, { passive: true });
+  });
+  resetIdleTimer();
+}
+document.addEventListener('DOMContentLoaded', initIdleAutoLogout);

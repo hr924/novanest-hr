@@ -60,6 +60,7 @@ async function switchView(view) {
     teamApprovals: renderTeamApprovals
   };
   await renderers[view]();
+  restoreFormDraft(view);
 }
 
 function escapeHtml(str) {
