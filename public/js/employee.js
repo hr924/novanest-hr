@@ -106,7 +106,7 @@ async function renderDashboard() {
   const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const weekCounts = weekDays.map(ds => attendance.some(a => a.date === ds) ? 1 : 0);
 
-  const leaveTypeColors = { Vacation: '#03A9E7', Sick: '#2ED47A', Personal: '#184B76', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const leaveTypeColors = { Casual: '#03A9E7', Sick: '#2ED47A', Personal: '#184B76', Bereavement: '#FF9F6B', Other: '#F0506E' };
   const typeCounts = {};
   leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
   const leaveTypes = Object.keys(typeCounts);
@@ -337,10 +337,31 @@ async function renderAttendance() {
 
 /* ---------------- Leave ---------------- */
 async function renderLeave() {
-  const { leave } = await api('/leave');
+  const [{ leave }, balanceRes] = await Promise.all([
+    api('/leave'),
+    api(`/leave/balance?year=${new Date().getFullYear()}`).catch(() => ({ balance: null }))
+  ]);
+  const b = balanceRes.balance;
   document.getElementById('main').innerHTML = `
     <h1>Leave requests</h1>
     <div class="subtitle">Submit time-off requests and track their status.</div>
+    ${b ? `
+    <div class="stat-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom:20px;">
+      <div class="stat-card">
+        <div class="num">${b.casualUsed}<span style="font-size:15px; color:var(--ink-soft); font-weight:500;"> / ${b.casualEntitlement}</span></div>
+        <div class="label">Casual leave used (${b.year})</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">${b.sickUsed}<span style="font-size:15px; color:var(--ink-soft); font-weight:500;"> / ${b.sickEntitlement}</span></div>
+        <div class="label">Sick leave used (${b.year})</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:${b.lopDaysYtd > 0 ? 'var(--rust)' : 'var(--ink)'};">${b.remaining}</div>
+        <div class="label">Days remaining${b.lopDaysYtd > 0 ? ` · ${b.lopDaysYtd} day(s) went to Loss of Pay` : ''}</div>
+      </div>
+    </div>
+    <div class="subtitle" style="margin-top:-10px;">Casual + Sick leave together give you 24 paid days a year. Public holidays don't count against this. Anything beyond 24 is deducted from salary as Loss of Pay.</div>
+    ` : ''}
     <div class="panel">
       <div class="panel-header"><h2>My requests</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('leaveModal').classList.add('show')">+ Request leave</button></div>
       <div class="panel-body">

@@ -11,6 +11,7 @@ const SIDEBAR_ICONS = {
   applications: '<path d="M4 4h16v12H8l-4 4V4z" fill="none"/>',
   employees: '<circle cx="9" cy="8" r="3"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="none"/><path d="M16 4.2a3 3 0 0 1 0 5.8M21 21c0-3-2-5.5-5-6.4" fill="none"/>',
   leave: '<rect x="3" y="5" width="18" height="16" rx="2" fill="none"/><path d="M3 10h18M8 3v4M16 3v4" fill="none"/>',
+  leaveCalendar: '<rect x="3" y="5" width="18" height="16" rx="2" fill="none"/><path d="M3 10h18M8 3v4M16 3v4" fill="none"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/>',
   timesheets: '<circle cx="12" cy="13" r="8" fill="none"/><path d="M12 9v4l3 2M9 2h6" fill="none"/>',
   teamApprovals: '<path d="M9 12l2 2 4-4" fill="none"/><circle cx="12" cy="12" r="9" fill="none"/>',
   attendance: '<path d="M9 12l2 2 4-4" fill="none"/><circle cx="12" cy="12" r="9" fill="none"/>',
@@ -225,7 +226,7 @@ function buildPayslipHTML(p, autoPrint) {
     </tr>
     <tr>
       <td>PERSONAL ALLOWANCE</td><td class="ps-amount">${payslipMoney(p.personalAllowance)}</td>
-      <td></td><td></td>
+      <td>${Number(p.lopDeduction) > 0 ? 'LOSS OF PAY' : ''}</td><td class="ps-amount">${Number(p.lopDeduction) > 0 ? payslipMoney(p.lopDeduction) : ''}</td>
     </tr>
     <tr>
       <td>OTHER ALLOWANCE</td><td class="ps-amount">${payslipMoney(p.otherAllowance)}</td>
@@ -239,7 +240,7 @@ function buildPayslipHTML(p, autoPrint) {
       <td colspan="2">NET PAY</td><td class="ps-amount" colspan="2">${payslipMoney(p.netPay)}</td>
     </tr>
   </table>
-  ${p.note ? `<div class="ps-note">${p.note}</div>` : ''}
+  ${p.note ? `<div class="ps-note">${p.note}</div>` : (Number(p.lopDays) > 0 ? `<div class="ps-note">${p.lopDays} day(s) this period exceeded the annual 12 Casual + 12 Sick leave allowance and were deducted as Loss of Pay.</div>` : '')}
   <div class="ps-footer">** This is a computer generated payslip and does not require signature and stamp.</div>
   ${autoPrint ? `<script>window.onload = function() { setTimeout(function() { window.print(); }, 300); };<\/script>` : ''}
 </body>

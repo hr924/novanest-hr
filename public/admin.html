@@ -37,6 +37,7 @@
       <div class="sidebar-link" data-view="applications">Applications</div>
       <div class="sidebar-link" data-view="employees">Employees</div>
       <div class="sidebar-link" data-view="leave">Leave requests</div>
+      <div class="sidebar-link" data-view="leaveCalendar">Leave calendar</div>
       <div class="sidebar-link" data-view="timesheets">Timesheets</div>
       <div class="sidebar-link" data-view="attendance">Attendance</div>
       <div class="sidebar-link" data-view="payslips">Payslips</div>
@@ -322,10 +323,11 @@
         <label for="payslipEmployee">Employee</label>
         <select id="payslipEmployee" required onchange="autoFillPayslipAmounts()"></select>
         <label for="payslipMonth">Month</label>
-        <input id="payslipMonth" type="month" required>
+        <input id="payslipMonth" type="month" required onchange="autoFillPayslipAmounts()">
 
-        <label for="payslipLopDays">LOP days</label>
+        <label for="payslipLopDays">LOP days <span class="muted" style="font-weight:400;">(auto-suggested from leave beyond the 12 Casual + 12 Sick annual allowance — you can override)</span></label>
         <input id="payslipLopDays" type="number" min="0" step="1" value="0" oninput="recalcPayslipTotals()">
+        <div id="payslipLeaveHint" class="hint-box" style="margin: -6px 0 14px; display:none;"></div>
 
         <div style="border-top:1px solid var(--line); margin: 14px 0 10px; padding-top: 10px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Earnings</div>
         <label for="payslipBasic">Basic</label>
