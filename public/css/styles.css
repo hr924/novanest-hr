@@ -375,13 +375,20 @@ textarea { resize: vertical; min-height: 80px; }
   cursor: pointer;
   margin-bottom: 3px;
   font-weight: 500;
+  min-width: 0;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .sidebar-link .ico {
-  width: 18px; height: 18px; flex-shrink: 0;
+  width: 18px; height: 18px; flex: 0 0 18px;
   display: flex; align-items: center; justify-content: center;
 }
 .sidebar-link .ico svg { width: 18px; height: 18px; }
+.sidebar-link > span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
 .sidebar-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .sidebar-link.active {
   background: rgba(255,255,255,0.14);
