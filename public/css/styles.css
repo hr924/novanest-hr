@@ -379,10 +379,24 @@ textarea { resize: vertical; min-height: 80px; }
   transition: background 0.12s ease, color 0.12s ease;
 }
 .sidebar-link .ico {
-  width: 18px; height: 18px; flex: 0 0 18px;
+  width: 30px; height: 30px; flex: 0 0 30px;
+  border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.1);
+  color: var(--navy-light);
 }
-.sidebar-link .ico svg { width: 18px; height: 18px; }
+.sidebar-link .ico svg { width: 16px; height: 16px; }
+.sidebar-link.active .ico { background: rgba(255,255,255,0.22); color: #fff; }
+.sidebar-link .ico.m-blue   { background: rgba(3,169,231,0.22); color: #6FD2FF; }
+.sidebar-link .ico.m-teal   { background: rgba(24,157,139,0.25); color: #5FE0CB; }
+.sidebar-link .ico.m-green  { background: rgba(34,181,115,0.25); color: #6BE8A8; }
+.sidebar-link .ico.m-indigo { background: rgba(91,95,239,0.25); color: #A5A8FF; }
+.sidebar-link .ico.m-amber  { background: rgba(255,138,76,0.25); color: #FFB081; }
+.sidebar-link .ico.m-pink   { background: rgba(232,84,140,0.25); color: #FF9CC1; }
+.sidebar-link .ico.m-slate  { background: rgba(148,163,184,0.25); color: #CBD3E1; }
+.sidebar-link .ico.m-violet { background: rgba(124,79,239,0.25); color: #C4ACFF; }
+.sidebar-link .ico.m-cyan   { background: rgba(14,165,199,0.25); color: #7FE2F5; }
+.sidebar-link .ico.m-rose   { background: rgba(240,80,110,0.25); color: #FF9CAE; }
 .sidebar-link > span:last-child {
   white-space: nowrap;
   overflow: hidden;

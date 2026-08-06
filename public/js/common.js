@@ -30,13 +30,16 @@ const SIDEBAR_ICONS = {
 };
 const SIDEBAR_ICON_DEFAULT = '<circle cx="12" cy="12" r="3"/>';
 
+const SIDEBAR_ICON_TINTS = ['m-blue', 'm-teal', 'm-green', 'm-indigo', 'm-amber', 'm-pink', 'm-slate', 'm-violet', 'm-cyan', 'm-rose'];
+
 function decorateSidebarIcons() {
-  document.querySelectorAll('.sidebar-link[data-view]').forEach((link) => {
+  document.querySelectorAll('.sidebar-link[data-view]').forEach((link, i) => {
     if (link.querySelector('.ico')) return; // already decorated
     const view = link.dataset.view;
     const path = SIDEBAR_ICONS[view] || SIDEBAR_ICON_DEFAULT;
+    const tint = SIDEBAR_ICON_TINTS[i % SIDEBAR_ICON_TINTS.length];
     const label = link.textContent;
-    link.innerHTML = `<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span><span>${label}</span>`;
+    link.innerHTML = `<span class="ico ${tint}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span><span>${label}</span>`;
   });
 }
 document.addEventListener('DOMContentLoaded', decorateSidebarIcons);
