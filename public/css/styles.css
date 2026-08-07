@@ -324,7 +324,7 @@ textarea { resize: vertical; min-height: 80px; }
 .dash {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 65px);
+  min-height: 100vh;
   background: var(--paper);
   gap: 14px;
   padding: 14px 18px;
@@ -360,12 +360,16 @@ textarea { resize: vertical; min-height: 80px; }
   padding-right: 16px;
   border-right: 1px solid rgba(255,255,255,0.14);
   line-height: 1.4;
-  white-space: nowrap;
+  white-space: normal;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 .sidebar .who strong { color: #fff; font-size: 13px; margin-right: 4px; }
-.sidebar .who span { margin-right: 8px; }
+.sidebar .who span { margin-right: 0; }
 .sidebar .who div { display: inline; }
-.sidebar .who a { font-size: 11px; }
+.sidebar .who a { font-size: 11px; white-space: nowrap; }
 .sidebar-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; flex: 1; padding: 6px 4px; }
 .sidebar-link {
   display: flex;
