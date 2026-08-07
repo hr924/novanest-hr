@@ -5,8 +5,10 @@ let CACHE = { jobs: [], applications: [], employees: [], leave: [], attendance: 
 async function init() {
   CURRENT_USER = await requireSession(['admin']);
   if (!CURRENT_USER) return;
-  document.getElementById('whoName').textContent = CURRENT_USER.name;
-  document.getElementById('whoRole').textContent = 'HR Administrator';
+  const whoNameEl0 = document.getElementById('whoName');
+  if (whoNameEl0) whoNameEl0.textContent = CURRENT_USER.name;
+  const whoRoleEl0 = document.getElementById('whoRole');
+  if (whoRoleEl0) whoRoleEl0.textContent = 'HR Administrator';
 
   document.querySelectorAll('.sidebar-link').forEach(link => {
     link.addEventListener('click', () => switchView(link.dataset.view));
@@ -16,7 +18,7 @@ async function init() {
     await api('/auth/logout', { method: 'POST' });
     window.location.href = '/login.html';
   });
-  document.getElementById('editAccountLink').addEventListener('click', (e) => {
+  document.getElementById('editAccountLink')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('myAccountForm').reset();
     document.getElementById('myAccountName').value = CURRENT_USER.name;
@@ -33,7 +35,8 @@ async function init() {
         }
       });
       CURRENT_USER = user;
-      document.getElementById('whoName').textContent = user.name;
+      const whoNameEl = document.getElementById('whoName');
+      if (whoNameEl) whoNameEl.textContent = user.name;
       toast('Account updated');
       closeModal('myAccountModal');
     } catch (err) { toast(err.message, true); }
