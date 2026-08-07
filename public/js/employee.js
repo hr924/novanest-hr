@@ -132,6 +132,10 @@ async function renderDashboard() {
       status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
     { icon: 'timesheets', title: 'Timesheets', view: 'timesheets',
       status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
+    ...(CURRENT_USER.role === 'manager' ? [
+      { icon: 'leave', title: 'Team approvals', view: 'teamApprovals',
+        status: 'Review requests', tone: 'idle' }
+    ] : []),
     { icon: 'payslips', title: 'Payslips', view: 'payslips',
       status: payslipThisMonth ? 'Processed' : 'Not available yet', tone: payslipThisMonth ? 'good' : 'idle' },
     { icon: 'form16', title: 'Form 16', view: 'form16',
