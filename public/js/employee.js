@@ -84,7 +84,7 @@ let OVERVIEW_CHARTS = { bar: null, donut: null };
 
 async function renderDashboard() {
   const main = document.getElementById('main');
-  const [attendanceRes, leaveRes, tasksRes, casesRes, timesheetsRes, payslipsRes, performanceRes, documentsRes, assetsRes] = await Promise.all([
+  const [attendanceRes, leaveRes, tasksRes, casesRes, timesheetsRes, payslipsRes, performanceRes, documentsRes, assetsRes, surveysRes, kbRes, workflowsRes] = await Promise.all([
     api('/attendance').catch(() => ({ attendance: [] })),
     api('/leave').catch(() => ({ leave: [] })),
     api('/tasks').catch(() => ({ tasks: [] })),
@@ -93,7 +93,10 @@ async function renderDashboard() {
     api('/payslips').catch(() => ({ payslips: [] })),
     api('/performance').catch(() => ({ performance: [] })),
     api('/documents').catch(() => ({ documents: [] })),
-    api('/assets').catch(() => ({ assets: [] }))
+    api('/assets').catch(() => ({ assets: [] })),
+    api('/surveys').catch(() => ({ surveys: [] })),
+    api('/knowledgebase').catch(() => ({ articles: [] })),
+    api('/workflows').catch(() => ({ workflows: [] }))
   ]);
   const attendance = attendanceRes.attendance || [];
   const leave = leaveRes.leave || [];
@@ -104,6 +107,9 @@ async function renderDashboard() {
   const performance = performanceRes.performance || [];
   const documents = documentsRes.documents || [];
   const assets = assetsRes.assets || [];
+  const surveys = surveysRes.surveys || [];
+  const kbArticles = kbRes.articles || [];
+  const workflows = workflowsRes.workflows || [];
 
   const now = new Date();
   const monthPrefix = now.toISOString().slice(0, 7);
@@ -114,9 +120,12 @@ async function renderDashboard() {
   const pendingTimesheets = timesheets.filter(t => t.status === 'draft' || t.status === 'submitted').length;
   const payslipThisMonth = payslips.some(p => p.month === monthPrefix);
   const myAssets = assets.filter(a => a.status === 'assigned').length;
+  const activeSurveys = surveys.filter(s => s.status === 'active' || !s.status).length;
 
   // ---- Module status grid: quick snapshot of my own modules ----
   const MODULES = [
+    { icon: 'profile', title: 'My profile', view: 'profile',
+      status: 'View & update', tone: 'idle' },
     { icon: 'attendance', title: 'Attendance', view: 'attendance',
       status: `${presentThisMonth} days this month`, tone: 'good' },
     { icon: 'leave', title: 'Leave', view: 'leave',
@@ -125,6 +134,8 @@ async function renderDashboard() {
       status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
     { icon: 'payslips', title: 'Payslips', view: 'payslips',
       status: payslipThisMonth ? 'Processed' : 'Not available yet', tone: payslipThisMonth ? 'good' : 'idle' },
+    { icon: 'form16', title: 'Form 16', view: 'form16',
+      status: 'Annual document', tone: 'idle' },
     { icon: 'performance', title: 'Performance', view: 'performance',
       status: performance.length ? `${performance.length} reviews` : 'No reviews yet', tone: performance.length ? 'good' : 'idle' },
     { icon: 'tasks', title: 'Tasks', view: 'tasks',
@@ -135,6 +146,12 @@ async function renderDashboard() {
       status: `${myAssets} assigned`, tone: 'good' },
     { icon: 'cases', title: 'Cases', view: 'cases',
       status: openCases ? `${openCases} open` : 'All resolved', tone: openCases ? 'warn' : 'good' },
+    { icon: 'surveys', title: 'Surveys', view: 'surveys',
+      status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
+    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase',
+      status: `${kbArticles.length} articles`, tone: 'good' },
+    { icon: 'workflows', title: 'Checklists', view: 'workflows',
+      status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' },
   ];
   const MODULE_TINTS = SIDEBAR_ICON_TINTS; // shared with the navbar so colors always match
   const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';

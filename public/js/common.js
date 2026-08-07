@@ -37,6 +37,7 @@ const SIDEBAR_ICON_DEFAULT = '<circle cx="12" cy="12" r="3"/>';
 // colors cycling by position and landing on arbitrary neighbors.
 const SIDEBAR_ICON_TINTS = {
   overview: 'm-slate',
+  profile: 'm-blue',
   employees: 'm-blue',
   payslips: 'm-teal',
   form16: 'm-teal',
