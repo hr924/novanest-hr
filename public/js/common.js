@@ -30,14 +30,41 @@ const SIDEBAR_ICONS = {
 };
 const SIDEBAR_ICON_DEFAULT = '<circle cx="12" cy="12" r="3"/>';
 
-const SIDEBAR_ICON_TINTS = ['m-blue', 'm-teal', 'm-green', 'm-indigo', 'm-amber', 'm-pink', 'm-slate', 'm-violet', 'm-cyan', 'm-rose'];
+// Fixed color per module — matches the tint used on that module's status
+// card exactly, so "Payroll" is always teal whether you're looking at the
+// navbar or the dashboard card. Related items (e.g. leave + leave calendar,
+// payslips + form16) intentionally share a color as a group, rather than
+// colors cycling by position and landing on arbitrary neighbors.
+const SIDEBAR_ICON_TINTS = {
+  overview: 'm-slate',
+  employees: 'm-blue',
+  payslips: 'm-teal',
+  form16: 'm-teal',
+  backups: 'm-teal',
+  attendance: 'm-green',
+  performance: 'm-indigo',
+  workflows: 'm-indigo',
+  jobs: 'm-amber',
+  leave: 'm-amber',
+  leaveCalendar: 'm-amber',
+  applications: 'm-pink',
+  timesheets: 'm-slate',
+  knowledgebase: 'm-slate',
+  documents: 'm-violet',
+  tasks: 'm-violet',
+  assets: 'm-cyan',
+  reports: 'm-cyan',
+  cases: 'm-rose',
+  surveys: 'm-rose',
+};
+const SIDEBAR_ICON_TINT_DEFAULT = 'm-slate';
 
 function decorateSidebarIcons() {
-  document.querySelectorAll('.sidebar-link[data-view]').forEach((link, i) => {
+  document.querySelectorAll('.sidebar-link[data-view]').forEach((link) => {
     if (link.querySelector('.ico')) return; // already decorated
     const view = link.dataset.view;
     const path = SIDEBAR_ICONS[view] || SIDEBAR_ICON_DEFAULT;
-    const tint = SIDEBAR_ICON_TINTS[i % SIDEBAR_ICON_TINTS.length];
+    const tint = SIDEBAR_ICON_TINTS[view] || SIDEBAR_ICON_TINT_DEFAULT;
     const label = link.textContent;
     link.innerHTML = `<span class="ico ${tint}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span><span>${label}</span>`;
   });

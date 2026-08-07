@@ -192,12 +192,12 @@ async function renderOverview() {
       status: openCases ? `${openCases} open` : 'All resolved',
       tone: openCases ? 'warn' : 'good' },
   ];
-  const MODULE_TINTS = ['m-blue', 'm-teal', 'm-green', 'm-indigo', 'm-amber', 'm-pink', 'm-slate', 'm-violet', 'm-cyan', 'm-rose'];
+  const MODULE_TINTS = SIDEBAR_ICON_TINTS; // shared with the navbar so colors always match
   const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
   const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
   const moduleGridHtml = MODULES.map((m, i) => `
     <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
-      <div class="module-icon ${MODULE_TINTS[i % MODULE_TINTS.length]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div class="module-icon ${MODULE_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
       <div>
         <div class="module-title">${escapeHtml(m.title)}</div>
         <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
@@ -266,9 +266,6 @@ async function renderOverview() {
       </div>
     </div>
 
-    <div class="main-head" style="margin-bottom:12px;">
-      <div><h3 style="font-family:var(--font-display); font-size:16px; font-weight:600; margin:0;">Module Status</h3></div>
-    </div>
     <div class="module-grid">
       ${moduleGridHtml}
     </div>
