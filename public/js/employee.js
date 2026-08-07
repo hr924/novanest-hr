@@ -84,16 +84,32 @@ let OVERVIEW_CHARTS = { bar: null, donut: null };
 
 async function renderDashboard() {
   const main = document.getElementById('main');
-  const [attendanceRes, leaveRes, tasksRes, casesRes] = await Promise.all([
+  const [attendanceRes, leaveRes, tasksRes, casesRes, timesheetsRes, payslipsRes, performanceRes, documentsRes, assetsRes, surveysRes, kbRes, workflowsRes] = await Promise.all([
     api('/attendance').catch(() => ({ attendance: [] })),
     api('/leave').catch(() => ({ leave: [] })),
     api('/tasks').catch(() => ({ tasks: [] })),
-    api('/cases').catch(() => ({ cases: [] }))
+    api('/cases').catch(() => ({ cases: [] })),
+    api('/timesheets').catch(() => ({ timesheets: [] })),
+    api('/payslips').catch(() => ({ payslips: [] })),
+    api('/performance').catch(() => ({ performance: [] })),
+    api('/documents').catch(() => ({ documents: [] })),
+    api('/assets').catch(() => ({ assets: [] })),
+    api('/surveys').catch(() => ({ surveys: [] })),
+    api('/knowledgebase').catch(() => ({ articles: [] })),
+    api('/workflows').catch(() => ({ workflows: [] }))
   ]);
   const attendance = attendanceRes.attendance || [];
   const leave = leaveRes.leave || [];
   const tasks = tasksRes.tasks || [];
   const cases = casesRes.cases || [];
+  const timesheets = timesheetsRes.timesheets || [];
+  const payslips = payslipsRes.payslips || [];
+  const performance = performanceRes.performance || [];
+  const documents = documentsRes.documents || [];
+  const assets = assetsRes.assets || [];
+  const surveys = surveysRes.surveys || [];
+  const kbArticles = kbRes.articles || [];
+  const workflows = workflowsRes.workflows || [];
 
   const now = new Date();
   const monthPrefix = now.toISOString().slice(0, 7);
@@ -101,6 +117,54 @@ async function renderDashboard() {
   const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr').length;
   const pendingTasks = tasks.filter(t => t.status !== 'done').length;
   const openCases = cases.filter(c => c.status !== 'resolved').length;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'draft' || t.status === 'submitted').length;
+  const payslipThisMonth = payslips.some(p => p.month === monthPrefix);
+  const myAssets = assets.filter(a => a.status === 'assigned').length;
+  const activeSurveys = surveys.filter(s => s.status === 'active' || !s.status).length;
+
+  // ---- Module status grid: quick snapshot of my own modules ----
+  const MODULES = [
+    { icon: 'profile', title: 'My profile', view: 'profile',
+      status: 'View & update', tone: 'idle' },
+    { icon: 'attendance', title: 'Attendance', view: 'attendance',
+      status: `${presentThisMonth} days this month`, tone: 'good' },
+    { icon: 'leave', title: 'Leave', view: 'leave',
+      status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
+    { icon: 'timesheets', title: 'Timesheets', view: 'timesheets',
+      status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
+    { icon: 'payslips', title: 'Payslips', view: 'payslips',
+      status: payslipThisMonth ? 'Processed' : 'Not available yet', tone: payslipThisMonth ? 'good' : 'idle' },
+    { icon: 'form16', title: 'Form 16', view: 'form16',
+      status: 'Annual document', tone: 'idle' },
+    { icon: 'performance', title: 'Performance', view: 'performance',
+      status: performance.length ? `${performance.length} reviews` : 'No reviews yet', tone: performance.length ? 'good' : 'idle' },
+    { icon: 'tasks', title: 'Tasks', view: 'tasks',
+      status: pendingTasks ? `${pendingTasks} pending` : 'All done', tone: pendingTasks ? 'warn' : 'good' },
+    { icon: 'documents', title: 'Documents', view: 'documents',
+      status: `${documents.length} files`, tone: 'good' },
+    { icon: 'assets', title: 'My Assets', view: 'assets',
+      status: `${myAssets} assigned`, tone: 'good' },
+    { icon: 'cases', title: 'Cases', view: 'cases',
+      status: openCases ? `${openCases} open` : 'All resolved', tone: openCases ? 'warn' : 'good' },
+    { icon: 'surveys', title: 'Surveys', view: 'surveys',
+      status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
+    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase',
+      status: `${kbArticles.length} articles`, tone: 'good' },
+    { icon: 'workflows', title: 'Checklists', view: 'workflows',
+      status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' },
+  ];
+  const MODULE_TINTS = SIDEBAR_ICON_TINTS; // shared with the navbar so colors always match
+  const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
+  const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
+  const moduleGridHtml = MODULES.map((m, i) => `
+    <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
+      <div class="module-icon ${MODULE_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div>
+        <div class="module-title">${escapeHtml(m.title)}</div>
+        <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
+      </div>
+      <div class="module-badge ${m.tone === 'warn' ? 'warn' : 'good'}">${m.tone === 'warn' ? warnSvg : checkSvg}</div>
+    </div>`).join('');
 
   const dow = now.getDay();
   const mondayOffset = dow === 0 ? -6 : 1 - dow;
@@ -133,23 +197,8 @@ async function renderDashboard() {
       <div class="head-action"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></div>
     </div>
 
-    <div class="stat-row">
-      <div class="stat-card">
-        <div class="stat-top"><div class="stat-icon i-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.attendance}</svg></div></div>
-        <div class="num">${presentThisMonth}</div><div class="label">Present Days (This Month)</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-top"><div class="stat-icon i-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.leave}</svg></div></div>
-        <div class="num">${pendingLeave}</div><div class="label">Leave Requests Pending</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-top"><div class="stat-icon i-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.tasks}</svg></div></div>
-        <div class="num">${pendingTasks}</div><div class="label">Tasks Pending</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-top"><div class="stat-icon i-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS.cases}</svg></div></div>
-        <div class="num">${openCases}</div><div class="label">Open Cases</div>
-      </div>
+    <div class="module-grid">
+      ${moduleGridHtml}
     </div>
 
     <div class="dash-grid-2">
