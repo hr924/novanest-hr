@@ -322,85 +322,89 @@ textarea { resize: vertical; min-height: 80px; }
    Dashboard shell — sidebar + main app frame
    ================================================================ */
 .dash {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  min-height: calc(100vh - 65px);
-  background: var(--paper);
-  gap: 18px;
-  padding: 18px;
-}
-.sidebar {
-  background: linear-gradient(180deg, var(--navy-deep), var(--navy-mid));
-  border-right: none;
-  border-radius: 22px;
-  padding: 22px 14px 22px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(11,27,77,0.25);
+  min-height: calc(100vh - 65px);
+  background: var(--paper);
+  gap: 14px;
+  padding: 14px 18px;
+}
+.sidebar {
+  background: linear-gradient(120deg, var(--navy-deep), var(--navy-mid));
+  border-radius: 18px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  box-shadow: 0 8px 24px rgba(11,27,77,0.2);
 }
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px 18px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
+  gap: 9px;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255,255,255,0.14);
 }
 .sidebar-logo .mark {
-  width: 34px; height: 34px; border-radius: 9px;
+  width: 30px; height: 30px; border-radius: 8px;
   background: var(--brand-gradient);
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 13px;
   flex-shrink: 0;
 }
-.sidebar-logo .name { font-family: var(--font-display); font-weight: 600; font-size: 17px; color: #fff; }
+.sidebar-logo .name { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: #fff; }
 .sidebar .who {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--navy-light);
-  padding: 12px 10px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
-  margin-bottom: 14px;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255,255,255,0.14);
+  line-height: 1.4;
+  white-space: nowrap;
 }
-.sidebar .who strong { color: #fff; display: block; font-size: 14px; }
-.sidebar-nav { flex: 1; overflow-y: auto; }
+.sidebar .who strong { color: #fff; font-size: 13px; margin-right: 4px; }
+.sidebar .who span { margin-right: 8px; }
+.sidebar .who div { display: inline; }
+.sidebar .who a { font-size: 11px; }
+.sidebar-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; }
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-size: 13.5px;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 30px;
+  font-size: 13px;
   color: var(--navy-light);
   text-decoration: none;
   cursor: pointer;
-  margin-bottom: 3px;
   font-weight: 500;
   min-width: 0;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .sidebar-link .ico {
-  width: 30px; height: 30px; flex: 0 0 30px;
-  border-radius: 9px;
+  width: 26px; height: 26px; flex: 0 0 26px;
+  border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,0.1);
   color: var(--navy-light);
 }
-.sidebar-link .ico svg { width: 16px; height: 16px; }
-.sidebar-link.active .ico { background: rgba(255,255,255,0.22); color: #fff; }
-.sidebar-link .ico.m-blue   { background: rgba(3,169,231,0.22); color: #6FD2FF; }
-.sidebar-link .ico.m-teal   { background: rgba(24,157,139,0.25); color: #5FE0CB; }
-.sidebar-link .ico.m-green  { background: rgba(34,181,115,0.25); color: #6BE8A8; }
-.sidebar-link .ico.m-indigo { background: rgba(91,95,239,0.25); color: #A5A8FF; }
-.sidebar-link .ico.m-amber  { background: rgba(255,138,76,0.25); color: #FFB081; }
-.sidebar-link .ico.m-pink   { background: rgba(232,84,140,0.25); color: #FF9CC1; }
-.sidebar-link .ico.m-slate  { background: rgba(148,163,184,0.25); color: #CBD3E1; }
-.sidebar-link .ico.m-violet { background: rgba(124,79,239,0.25); color: #C4ACFF; }
-.sidebar-link .ico.m-cyan   { background: rgba(14,165,199,0.25); color: #7FE2F5; }
-.sidebar-link .ico.m-rose   { background: rgba(240,80,110,0.25); color: #FF9CAE; }
+.sidebar-link .ico svg { width: 14px; height: 14px; }
+.sidebar-link.active .ico { background: rgba(255,255,255,0.9); color: var(--navy-deep); }
+.sidebar-link .ico.m-blue   { background: #03A9E7; color: #fff; }
+.sidebar-link .ico.m-teal   { background: #189D8B; color: #fff; }
+.sidebar-link .ico.m-green  { background: #22B573; color: #fff; }
+.sidebar-link .ico.m-indigo { background: #5B5FEF; color: #fff; }
+.sidebar-link .ico.m-amber  { background: #FF8A4C; color: #fff; }
+.sidebar-link .ico.m-pink   { background: #E8548C; color: #fff; }
+.sidebar-link .ico.m-slate  { background: #6B7690; color: #fff; }
+.sidebar-link .ico.m-violet { background: #7C4FEF; color: #fff; }
+.sidebar-link .ico.m-cyan   { background: #0EA5C7; color: #fff; }
+.sidebar-link .ico.m-rose   { background: #F0506E; color: #fff; }
 .sidebar-link > span:last-child {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 140px;
   line-height: 1.3;
 }
 .sidebar-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
@@ -621,11 +625,12 @@ textarea { resize: vertical; min-height: 80px; }
 .mt-24 { margin-top: 24px; }
 
 @media (max-width: 780px) {
-  .dash { grid-template-columns: 1fr; }
   .dash { padding: 10px; gap: 10px; }
-  .sidebar { display: flex; overflow-x: auto; border-radius: 16px; padding: 10px; }
+  .sidebar { padding: 8px 10px; border-radius: 14px; }
   .sidebar-logo, .sidebar .who { display: none; }
-  .sidebar-nav { display: flex; }
+  .sidebar-nav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sidebar-link { flex-shrink: 0; }
+  .sidebar-link > span:last-child { max-width: 100px; }
   .stat-row { grid-template-columns: repeat(2, 1fr); }
   .module-grid { grid-template-columns: 1fr; }
   .dash-grid-2, .dash-grid-bottom { grid-template-columns: 1fr; }
