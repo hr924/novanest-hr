@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.novanest.hrm",
+    "sha256_cert_fingerprints": ["03:F3:42:2D:60:1C:12:A2:C9:57:72:AA:CD:20:FF:77:FF:D8:0A:7A:22:C1:91:2E:84:C7:73:A2:E8:6C:AE:0A"]
+  }
+}]

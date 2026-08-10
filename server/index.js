@@ -55,7 +55,10 @@ app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/backups', backupRoutes);
 
 // Static frontend
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// dotfiles: 'allow' is required so /.well-known/assetlinks.json (needed for
+// Android TWA/app-link verification) is actually served — Express hides
+// dotfile paths by default.
+app.use(express.static(path.join(__dirname, '..', 'public'), { dotfiles: 'allow' }));
 
 app.listen(PORT, () => {
   console.log(`Novanest HR running at http://localhost:${PORT}`);
