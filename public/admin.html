@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Novanest HRM</title>
-<link rel="stylesheet" href="css/styles.css?v=1786076306">
+<link rel="stylesheet" href="css/styles.css?v=1785305713">
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#03A9E7">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -22,12 +22,34 @@
       <a href="#" id="logoutLink">Sign out</a>
     </nav>
   </div>
-  <div class="topbar-nav">
-    <div class="sidebar-link active" data-view="overview">Overview</div>
-  </div>
 </div>
 
 <div class="dash">
+  <div class="sidebar">
+    <div class="who">
+      <strong id="whoName">—</strong><span id="whoRole">—</span>
+      <div><a href="#" id="editAccountLink" style="font-size:11.5px; color: var(--ledger);">Edit name / password</a></div>
+    </div>
+    <div class="sidebar-link active" data-view="overview">Overview</div>
+    <div class="sidebar-link" data-view="jobs">Job postings</div>
+    <div class="sidebar-link" data-view="applications">Applications</div>
+    <div class="sidebar-link" data-view="employees">Employees</div>
+    <div class="sidebar-link" data-view="leave">Leave requests</div>
+    <div class="sidebar-link" data-view="timesheets">Timesheets</div>
+    <div class="sidebar-link" data-view="attendance">Attendance</div>
+    <div class="sidebar-link" data-view="payslips">Payslips</div>
+    <div class="sidebar-link" data-view="form16">Form 16</div>
+    <div class="sidebar-link" data-view="performance">Performance</div>
+    <div class="sidebar-link" data-view="tasks">Tasks</div>
+    <div class="sidebar-link" data-view="documents">Documents</div>
+    <div class="sidebar-link" data-view="assets">Assets</div>
+    <div class="sidebar-link" data-view="cases">Cases</div>
+    <div class="sidebar-link" data-view="surveys">Surveys</div>
+    <div class="sidebar-link" data-view="knowledgebase">Knowledge base</div>
+    <div class="sidebar-link" data-view="workflows">Workflows</div>
+    <div class="sidebar-link" data-view="reports">Reports</div>
+    <div class="sidebar-link" data-view="backups">Backups</div>
+  </div>
   <div class="main" id="main"></div>
 </div>
 
@@ -228,11 +250,6 @@
             <input id="empLoginPassword" placeholder="Auto-generated if left blank">
           </div>
         </div>
-        <div id="existingLoginWrap" style="display:none; border-top:1px solid var(--line); margin-top: 18px; padding-top: 14px;">
-          <label style="font-weight:600; color: var(--ink);">Login account</label>
-          <p class="muted" style="font-size:12.5px; margin: 0 0 10px;">This employee already has a login.</p>
-          <button class="btn btn-ghost" type="button" id="existingLoginResetBtn" style="width:100%; justify-content:center;">Reset password</button>
-        </div>
         <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:6px;">Save employee</button>
       </form>
     </div>
@@ -297,11 +314,10 @@
         <label for="payslipEmployee">Employee</label>
         <select id="payslipEmployee" required onchange="autoFillPayslipAmounts()"></select>
         <label for="payslipMonth">Month</label>
-        <input id="payslipMonth" type="month" required onchange="autoFillPayslipAmounts()">
+        <input id="payslipMonth" type="month" required>
 
-        <label for="payslipLopDays">LOP days <span class="muted" style="font-weight:400;">(auto-suggested from leave beyond the 12 Casual + 12 Sick annual allowance — you can override)</span></label>
+        <label for="payslipLopDays">LOP days</label>
         <input id="payslipLopDays" type="number" min="0" step="1" value="0" oninput="recalcPayslipTotals()">
-        <div id="payslipLeaveHint" class="hint-box" style="margin: -6px 0 14px; display:none;"></div>
 
         <div style="border-top:1px solid var(--line); margin: 14px 0 10px; padding-top: 10px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Earnings</div>
         <label for="payslipBasic">Basic</label>
@@ -531,8 +547,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="js/common.js?v=1786076306"></script>
-<script src="js/admin.js?v=1786076306"></script>
+<script src="js/common.js?v=1785305713"></script>
+<script src="js/admin.js?v=1785305713"></script>
 </body>
 </html>

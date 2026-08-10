@@ -1,6 +1,6 @@
 const express = require('express');
 const { readDB, writeDB, nextId } = require('../db');
-const { requireLogin } = require('../middleware');
+const { requireLogin, requireAdmin } = require('../middleware');
 
 const router = express.Router();
 
@@ -8,38 +8,45 @@ function num(v) {
   return Number(v) || 0;
 }
 
-function totalWorkHours(entries) {
-  return (entries || []).reduce((sum, e) => sum + num(e.workHours), 0);
+function totalOf(entries, field) {
+  return (entries || []).reduce((sum, e) => sum + num(e[field]), 0);
 }
 
-function totalLeaveHours(entries) {
-  return (entries || []).reduce((sum, e) => sum + num(e.leaveHours), 0);
-}
-
-// Logged-in: list timesheets
-// - admin sees only timesheets that have already been approved by a manager
-//   (the admin portal is a record of approved timesheets, not an approval queue)
-// - manager sees timesheets from employees who report to them, at any status
-// - employee sees their own
+// Logged-in: MY OWN timesheets only — this is the "fill your timesheet"
+// page, used by both employees and managers for their own weeks. It never
+// returns anyone else's data, regardless of role.
 router.get('/', requireLogin, (req, res) => {
   const db = readDB();
   const { user } = req.session;
-  let timesheets = db.timesheets;
-
-  if (user.role === 'manager') {
-    const reportIds = db.employees.filter(e => e.managerId === user.employeeId).map(e => e.id);
-    timesheets = timesheets.filter(t => reportIds.includes(t.employeeId));
-  } else if (user.role === 'employee') {
-    timesheets = timesheets.filter(t => t.employeeId === user.employeeId);
-  } else if (user.role === 'admin') {
-    timesheets = timesheets.filter(t => t.status === 'approved');
-  }
-
-  res.json({ timesheets: timesheets.sort((a, b) => (b.weekStarting || '').localeCompare(a.weekStarting || '')) });
+  const own = user.employeeId ? db.timesheets.filter(t => t.employeeId === user.employeeId) : [];
+  res.json({ timesheets: own.sort((a, b) => (b.weekStarting || '').localeCompare(a.weekStarting || '')) });
 });
 
-// Employee: start/save a draft timesheet for a week, or update it while it's
-// still a draft or was sent back for changes.
+// Manager only: timesheets from the people who report to them (for their
+// Team Approvals page). Never available to plain employees, and never
+// includes the manager's own timesheet — that comes from GET / above.
+router.get('/team', requireLogin, (req, res) => {
+  const { user } = req.session;
+  if (user.role !== 'manager') {
+    return res.status(403).json({ error: 'Manager access required' });
+  }
+  const db = readDB();
+  const reportIds = db.employees.filter(e => e.managerId === user.employeeId).map(e => e.id);
+  const teamTimesheets = db.timesheets.filter(t => reportIds.includes(t.employeeId));
+  res.json({ timesheets: teamTimesheets.sort((a, b) => (b.weekStarting || '').localeCompare(a.weekStarting || '')) });
+});
+
+// Admin only: every timesheet in the company, but ONLY once a manager has
+// approved it — a timesheet that's still a draft, submitted, or rejected
+// never shows up here. Approval itself is a manager-only action (below).
+router.get('/company', requireAdmin, (req, res) => {
+  const db = readDB();
+  const approved = db.timesheets.filter(t => t.status === 'approved');
+  res.json({ timesheets: approved.sort((a, b) => (b.weekStarting || '').localeCompare(a.weekStarting || '')) });
+});
+
+// Employee/manager: start/save a draft timesheet for a week, or update it
+// while it's still a draft or was sent back for changes.
 router.post('/', requireLogin, (req, res) => {
   const { weekStarting, entries, notes } = req.body;
   const { user } = req.session;
@@ -58,15 +65,19 @@ router.post('/', requireLogin, (req, res) => {
   const cleanEntries = Array.isArray(entries) ? entries.map(e => ({
     date: e.date || '',
     project: (e.project || '').trim(),
-    workHours: num(e.workHours),
+    workingHours: num(e.workingHours),
     leaveHours: num(e.leaveHours)
   })) : [];
+
+  const totalWorkingHours = totalOf(cleanEntries, 'workingHours');
+  const totalLeaveHours = totalOf(cleanEntries, 'leaveHours');
 
   if (existing) {
     existing.entries = cleanEntries;
     existing.notes = notes || '';
-    existing.totalHours = totalWorkHours(cleanEntries);
-    existing.totalLeaveHours = totalLeaveHours(cleanEntries);
+    existing.totalWorkingHours = totalWorkingHours;
+    existing.totalLeaveHours = totalLeaveHours;
+    existing.totalHours = totalWorkingHours; // kept for backward compatibility
     existing.status = 'draft';
     existing.managerStatus = hasManager ? 'pending' : 'approved';
     existing.managerComment = '';
@@ -81,8 +92,9 @@ router.post('/', requireLogin, (req, res) => {
     employeeName: user.name,
     weekStarting,
     entries: cleanEntries,
-    totalHours: totalWorkHours(cleanEntries),
-    totalLeaveHours: totalLeaveHours(cleanEntries),
+    totalWorkingHours,
+    totalLeaveHours,
+    totalHours: totalWorkingHours, // kept for backward compatibility
     notes: notes || '',
     status: 'draft',
     managerStatus: hasManager ? 'pending' : 'approved',
@@ -95,7 +107,8 @@ router.post('/', requireLogin, (req, res) => {
   res.status(201).json({ timesheet });
 });
 
-// Employee: submit a draft (or previously rejected) timesheet for manager approval
+// Employee/manager: submit a draft (or previously rejected) timesheet for
+// manager approval
 router.put('/:id/submit', requireLogin, (req, res) => {
   const db = readDB();
   const { user } = req.session;
@@ -111,19 +124,22 @@ router.put('/:id/submit', requireLogin, (req, res) => {
     return res.status(400).json({ error: 'Add at least one entry before submitting' });
   }
 
+  timesheet.status = 'submitted';
   timesheet.managerStatus = timesheet.managerStatus === 'approved' ? 'approved' : 'pending';
-  // Employees with no manager assigned are auto-approved and need no manager action.
-  timesheet.status = timesheet.managerStatus === 'approved' ? 'approved' : 'submitted';
   timesheet.managerComment = '';
   timesheet.submittedDate = new Date().toISOString();
   writeDB(db);
   res.json({ timesheet });
 });
 
-// Manager only: approve/reject a submitted timesheet from someone who reports to them.
-// Admins cannot approve timesheets directly — approval is the manager's call. A
-// timesheet only shows up in the admin portal once a manager has approved it.
+// Manager ONLY: approve/reject a submitted timesheet from one of their
+// direct reports. Admins cannot approve timesheets — they only ever see
+// the already-approved ones (GET /company above).
 router.put('/:id/manager-status', requireLogin, (req, res) => {
+  const { user } = req.session;
+  if (user.role !== 'manager') {
+    return res.status(403).json({ error: 'Only the assigned manager can approve or reject a timesheet' });
+  }
   const { status, comment } = req.body;
   if (!['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
@@ -132,10 +148,6 @@ router.put('/:id/manager-status', requireLogin, (req, res) => {
   const timesheet = db.timesheets.find(t => t.id === Number(req.params.id));
   if (!timesheet) return res.status(404).json({ error: 'Timesheet not found' });
 
-  const { user } = req.session;
-  if (user.role !== 'manager') {
-    return res.status(403).json({ error: 'Only a manager can approve or decline a timesheet' });
-  }
   const employee = db.employees.find(e => e.id === timesheet.employeeId);
   if (!employee || employee.managerId !== user.employeeId) {
     return res.status(403).json({ error: 'You are not the manager for this employee' });
