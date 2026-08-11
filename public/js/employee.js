@@ -3,8 +3,10 @@ let CURRENT_USER = null;
 async function init() {
   CURRENT_USER = await requireSession(['employee', 'manager', 'admin']);
   if (!CURRENT_USER) return;
-  document.getElementById('whoName').textContent = CURRENT_USER.name;
-  document.getElementById('whoRole').textContent = CURRENT_USER.role === 'manager' ? 'Manager' : 'Employee';
+  const whoNameEl0 = document.getElementById('whoName');
+  if (whoNameEl0) whoNameEl0.textContent = CURRENT_USER.name;
+  const whoRoleEl0 = document.getElementById('whoRole');
+  if (whoRoleEl0) whoRoleEl0.textContent = CURRENT_USER.role === 'manager' ? 'Manager' : 'Employee';
   if (CURRENT_USER.role === 'manager') {
     const teamLinkEl = document.getElementById('teamApprovalsLink');
     if (teamLinkEl) teamLinkEl.style.display = 'block';
@@ -18,10 +20,13 @@ async function init() {
     await api('/auth/logout', { method: 'POST' });
     window.location.href = '/login.html';
   });
-  document.getElementById('editAccountLink').addEventListener('click', (e) => {
+  document.getElementById('editAccountLink')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('myAccountForm').reset();
     document.getElementById('myAccountName').value = CURRENT_USER.name;
+    const isEmployee = CURRENT_USER.role === 'employee';
+    document.getElementById('myAccountPasswordWrap').style.display = isEmployee ? 'none' : 'block';
+    document.getElementById('myAccountPasswordHint').style.display = isEmployee ? 'block' : 'none';
     document.getElementById('myAccountModal').classList.add('show');
   });
   document.getElementById('myAccountForm').addEventListener('submit', async (e) => {
@@ -35,7 +40,8 @@ async function init() {
         }
       });
       CURRENT_USER = user;
-      document.getElementById('whoName').textContent = user.name;
+      const whoNameEl = document.getElementById('whoName');
+      if (whoNameEl) whoNameEl.textContent = user.name;
       toast('Account updated');
       closeModal('myAccountModal');
     } catch (err) { toast(err.message, true); }
@@ -58,6 +64,7 @@ async function switchView(view) {
     teamApprovals: renderTeamApprovals
   };
   await renderers[view]();
+  restoreFormDraft(view);
 }
 
 function escapeHtml(str) {
@@ -73,72 +80,85 @@ function renderTable(headers, rows) {
 }
 
 /* ---------------- Dashboard ---------------- */
+let OVERVIEW_CHARTS = { bar: null, donut: null };
+
 async function renderDashboard() {
-  const [
-    attendanceRes, leaveRes, timesheetsRes, payslipsRes, performanceRes,
-    documentsRes, assetsRes, casesRes, tasksRes, surveysRes, kbRes, workflowsRes
-  ] = await Promise.all([
+  const main = document.getElementById('main');
+  const [attendanceRes, leaveRes, tasksRes, casesRes, timesheetsRes, payslipsRes, performanceRes, documentsRes, assetsRes, surveysRes, kbRes, workflowsRes] = await Promise.all([
     api('/attendance').catch(() => ({ attendance: [] })),
     api('/leave').catch(() => ({ leave: [] })),
+    api('/tasks').catch(() => ({ tasks: [] })),
+    api('/cases').catch(() => ({ cases: [] })),
     api('/timesheets').catch(() => ({ timesheets: [] })),
     api('/payslips').catch(() => ({ payslips: [] })),
     api('/performance').catch(() => ({ performance: [] })),
     api('/documents').catch(() => ({ documents: [] })),
     api('/assets').catch(() => ({ assets: [] })),
-    api('/cases').catch(() => ({ cases: [] })),
-    api('/tasks').catch(() => ({ tasks: [] })),
     api('/surveys').catch(() => ({ surveys: [] })),
     api('/knowledgebase').catch(() => ({ articles: [] })),
     api('/workflows').catch(() => ({ workflows: [] }))
   ]);
   const attendance = attendanceRes.attendance || [];
   const leave = leaveRes.leave || [];
+  const tasks = tasksRes.tasks || [];
+  const cases = casesRes.cases || [];
   const timesheets = timesheetsRes.timesheets || [];
   const payslips = payslipsRes.payslips || [];
   const performance = performanceRes.performance || [];
   const documents = documentsRes.documents || [];
   const assets = assetsRes.assets || [];
-  const cases = casesRes.cases || [];
-  const tasks = tasksRes.tasks || [];
   const surveys = surveysRes.surveys || [];
   const kbArticles = kbRes.articles || [];
   const workflows = workflowsRes.workflows || [];
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr' || l.status === 'pending').length;
-  const pendingTimesheets = timesheets.filter(t => t.status === 'draft' || t.status === 'rejected').length;
-  const currentMonth = todayStr.slice(0, 7);
-  const payslipsThisMonth = payslips.filter(p => p.month === currentMonth).length;
-  const openCases = cases.filter(c => c.status !== 'resolved').length;
-  const myAssets = assets.length;
+  const now = new Date();
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const presentThisMonth = attendance.filter(a => a.date.startsWith(monthPrefix)).length;
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr').length;
   const pendingTasks = tasks.filter(t => t.status !== 'done').length;
+  const openCases = cases.filter(c => c.status !== 'resolved').length;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'draft' || t.status === 'submitted').length;
+  const payslipThisMonth = payslips.some(p => p.month === monthPrefix);
+  const myAssets = assets.filter(a => a.status === 'assigned').length;
   const activeSurveys = surveys.filter(s => s.status === 'active' || !s.status).length;
-  const presentDaysThisMonth = attendance.filter(a => a.date && a.date.startsWith(currentMonth)).length;
 
+  // ---- Module status grid: quick snapshot of my own modules ----
   const MODULES = [
-    { icon: 'profile', title: 'My profile', view: 'profile', status: 'View & edit', tone: 'idle' },
-    { icon: 'attendance', title: 'Attendance', view: 'attendance', status: `${presentDaysThisMonth} days this month`, tone: 'good' },
-    { icon: 'leave', title: 'Leave', view: 'leave', status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
-    { icon: 'timesheets', title: 'Timesheets', view: 'timesheets', status: pendingTimesheets ? `${pendingTimesheets} to submit` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
-    ...(CURRENT_USER.role === 'manager' ? [
-      { icon: 'teamApprovals', title: 'Team approvals', view: 'teamApprovals', status: 'Review requests', tone: 'idle' }
-    ] : []),
-    { icon: 'payslips', title: 'Payslips', view: 'payslips', status: payslipsThisMonth ? 'Latest available' : 'Not yet processed', tone: payslipsThisMonth ? 'good' : 'idle' },
-    { icon: 'form16', title: 'Form 16', view: 'form16', status: 'Annual document', tone: 'idle' },
-    { icon: 'performance', title: 'Performance', view: 'performance', status: performance.length ? `${performance.length} reviews` : 'No reviews yet', tone: performance.length ? 'good' : 'idle' },
-    { icon: 'tasks', title: 'Tasks', view: 'tasks', status: pendingTasks ? `${pendingTasks} pending` : 'All done', tone: pendingTasks ? 'warn' : 'good' },
-    { icon: 'documents', title: 'Documents', view: 'documents', status: `${documents.length} files`, tone: 'good' },
-    { icon: 'assets', title: 'My assets', view: 'assets', status: `${myAssets} assigned`, tone: 'good' },
-    { icon: 'cases', title: 'Helpdesk', view: 'cases', status: openCases ? `${openCases} open` : 'All resolved', tone: openCases ? 'warn' : 'good' },
-    { icon: 'surveys', title: 'Surveys', view: 'surveys', status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
-    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase', status: `${kbArticles.length} articles`, tone: 'good' },
-    { icon: 'workflows', title: 'Checklists', view: 'workflows', status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' }
+    { icon: 'profile', title: 'My profile', view: 'profile',
+      status: 'View & update', tone: 'idle' },
+    { icon: 'attendance', title: 'Attendance', view: 'attendance',
+      status: `${presentThisMonth} days this month`, tone: 'good' },
+    { icon: 'leave', title: 'Leave', view: 'leave',
+      status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
+    { icon: 'timesheets', title: 'Timesheets', view: 'timesheets',
+      status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
+    { icon: 'payslips', title: 'Payslips', view: 'payslips',
+      status: payslipThisMonth ? 'Processed' : 'Not available yet', tone: payslipThisMonth ? 'good' : 'idle' },
+    { icon: 'form16', title: 'Form 16', view: 'form16',
+      status: 'Annual document', tone: 'idle' },
+    { icon: 'performance', title: 'Performance', view: 'performance',
+      status: performance.length ? `${performance.length} reviews` : 'No reviews yet', tone: performance.length ? 'good' : 'idle' },
+    { icon: 'tasks', title: 'Tasks', view: 'tasks',
+      status: pendingTasks ? `${pendingTasks} pending` : 'All done', tone: pendingTasks ? 'warn' : 'good' },
+    { icon: 'documents', title: 'Documents', view: 'documents',
+      status: `${documents.length} files`, tone: 'good' },
+    { icon: 'assets', title: 'My Assets', view: 'assets',
+      status: `${myAssets} assigned`, tone: 'good' },
+    { icon: 'cases', title: 'Cases', view: 'cases',
+      status: openCases ? `${openCases} open` : 'All resolved', tone: openCases ? 'warn' : 'good' },
+    { icon: 'surveys', title: 'Surveys', view: 'surveys',
+      status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
+    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase',
+      status: `${kbArticles.length} articles`, tone: 'good' },
+    { icon: 'workflows', title: 'Checklists', view: 'workflows',
+      status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' },
   ];
+  const MODULE_TINTS = SIDEBAR_ICON_TINTS; // shared with the navbar so colors always match
   const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
   const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
-  const moduleGridHtml = MODULES.map((m) => `
+  const moduleGridHtml = MODULES.map((m, i) => `
     <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
-      <div class="module-icon ${SIDEBAR_ICON_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div class="module-icon ${MODULE_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
       <div>
         <div class="module-title">${escapeHtml(m.title)}</div>
         <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
@@ -146,14 +166,107 @@ async function renderDashboard() {
       <div class="module-badge ${m.tone === 'warn' ? 'warn' : 'good'}">${m.tone === 'warn' ? warnSvg : checkSvg}</div>
     </div>`).join('');
 
-  document.getElementById('main').innerHTML = `
+  const dow = now.getDay();
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0, 0, 0, 0);
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(monday); d.setDate(monday.getDate() + i); weekDays.push(d.toISOString().slice(0, 10)); }
+  const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekCounts = weekDays.map(ds => attendance.some(a => a.date === ds) ? 1 : 0);
+
+  const leaveTypeColors = { Casual: '#03A9E7', Sick: '#2ED47A', Personal: '#184B76', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const typeCounts = {};
+  leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
+  const leaveTypes = Object.keys(typeCounts);
+  const leaveTotal = leave.length;
+
+  const activity = [];
+  leave.slice(0, 3).forEach(l => activity.push({ text: `${l.type} leave request — ${l.overallStatus.replace('-', ' ')}`, date: l.requestedDate || l.startDate, icon: 'leave' }));
+  tasks.slice(0, 3).forEach(t => activity.push({ text: `Task assigned: ${t.title}`, date: t.assignedDate || t.dueDate, icon: 'tasks' }));
+  attendance.slice(0, 2).forEach(a => activity.push({ text: `Checked in — ${fmtDate(a.date)}`, date: a.date, icon: 'attendance' }));
+  activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const activityHtml = activity.slice(0, 6).map(a => `
+    <div class="activity-item">
+      <div class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[a.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div><div class="a-text">${escapeHtml(a.text)}</div><div class="a-time">${fmtDate(a.date)}</div></div>
+    </div>`).join('') || emptyState('No recent activity yet');
+
+  main.innerHTML = `
     <div class="main-head">
-      <div><h1>Dashboard</h1><div class="subtitle">Your workspace at a glance.</div></div>
+      <div><h1>Dashboard</h1><div class="subtitle">Welcome back, ${escapeHtml((CURRENT_USER.name || '').split(' ')[0] || '')}.</div></div>
+      <div class="head-action"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></div>
     </div>
+
     <div class="module-grid">
       ${moduleGridHtml}
     </div>
+
+    <div class="dash-grid-2">
+      <div class="chart-card">
+        <div class="chart-card-head"><h3>Attendance Overview</h3><span class="chip">This Week</span></div>
+        <div class="chart-wrap"><canvas id="attendanceChart"></canvas></div>
+      </div>
+      <div class="chart-card donut-wrap">
+        <div class="chart-card-head" style="width:100%;"><h3>Leave Summary</h3></div>
+        <div class="donut-canvas-holder">
+          <canvas id="leaveDonut"></canvas>
+          <div class="donut-center"><div class="n">${leaveTotal}</div><div class="t">Total</div></div>
+        </div>
+        <div class="donut-legend">
+          ${leaveTypes.length === 0 ? `<div class="muted" style="font-size:12.5px; text-align:center;">No leave requests yet</div>` : leaveTypes.map(t => `
+            <div class="li"><div class="k"><span class="dot" style="background:${leaveTypeColors[t] || '#8D8BA7'}"></span>${escapeHtml(t)}</div><div class="v">${typeCounts[t]}</div></div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid-bottom">
+      <div class="activity-card">
+        <h3>Recent Activities</h3>
+        ${activityHtml}
+      </div>
+      <div class="ai-card">
+        <div>
+          <h3>AI Ask - Your HR Assistant</h3>
+          <p>Get instant answers to HR policies, leave balance, payroll, and more.</p>
+        </div>
+        <button class="btn-ai" onclick="switchView('knowledgebase');">Ask Now →</button>
+      </div>
+    </div>
   `;
+
+  drawOverviewCharts(weekLabels, weekCounts, leaveTypes, leaveTypes.map(t => typeCounts[t]), leaveTypes.map(t => leaveTypeColors[t] || '#8D8BA7'));
+}
+
+function drawOverviewCharts(weekLabels, weekCounts, donutLabels, donutData, donutColors) {
+  if (typeof Chart === 'undefined') return;
+  if (OVERVIEW_CHARTS.bar) OVERVIEW_CHARTS.bar.destroy();
+  if (OVERVIEW_CHARTS.donut) OVERVIEW_CHARTS.donut.destroy();
+
+  const barCtx = document.getElementById('attendanceChart');
+  if (barCtx) {
+    OVERVIEW_CHARTS.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: { labels: weekLabels, datasets: [{ data: weekCounts, backgroundColor: '#03A9E7', borderRadius: 6, maxBarThickness: 34 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#ECEBF6' }, ticks: { color: '#8D8BA7', font: { size: 11 }, stepSize: 1 } },
+          x: { grid: { display: false }, ticks: { color: '#8D8BA7', font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  const donutCtx = document.getElementById('leaveDonut');
+  if (donutCtx && donutData.length) {
+    OVERVIEW_CHARTS.donut = new Chart(donutCtx, {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+    });
+  }
 }
 
 /* ---------------- Profile ---------------- */
@@ -277,10 +390,31 @@ async function renderAttendance() {
 
 /* ---------------- Leave ---------------- */
 async function renderLeave() {
-  const { leave } = await api('/leave');
+  const [{ leave }, balanceRes] = await Promise.all([
+    api('/leave'),
+    api(`/leave/balance?year=${new Date().getFullYear()}`).catch(() => ({ balance: null }))
+  ]);
+  const b = balanceRes.balance;
   document.getElementById('main').innerHTML = `
     <h1>Leave requests</h1>
     <div class="subtitle">Submit time-off requests and track their status.</div>
+    ${b ? `
+    <div class="stat-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom:20px;">
+      <div class="stat-card">
+        <div class="num">${b.casualUsed}<span style="font-size:15px; color:var(--ink-soft); font-weight:500;"> / ${b.casualEntitlement}</span></div>
+        <div class="label">Casual leave used (${b.year})</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">${b.sickUsed}<span style="font-size:15px; color:var(--ink-soft); font-weight:500;"> / ${b.sickEntitlement}</span></div>
+        <div class="label">Sick leave used (${b.year})</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:${b.lopDaysYtd > 0 ? 'var(--rust)' : 'var(--ink)'};">${b.remaining}</div>
+        <div class="label">Days remaining${b.lopDaysYtd > 0 ? ` · ${b.lopDaysYtd} day(s) went to Loss of Pay` : ''}</div>
+      </div>
+    </div>
+    <div class="subtitle" style="margin-top:-10px;">Casual + Sick leave together give you 24 paid days a year. Public holidays don't count against this. Anything beyond 24 is deducted from salary as Loss of Pay.</div>
+    ` : ''}
     <div class="panel">
       <div class="panel-header"><h2>My requests</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('leaveModal').classList.add('show')">+ Request leave</button></div>
       <div class="panel-body">
@@ -332,8 +466,8 @@ async function renderTimesheets() {
           ['Week starting', 'Working hours', 'Leave/Holiday', 'Status', 'Manager decision', ''],
           timesheets.map(t => [
             fmtDate(t.weekStarting),
-            t.totalWorkingHours ?? t.totalHours ?? 0,
-            t.totalLeaveHours ?? 0,
+            t.totalHours,
+            t.totalLeaveHours || 0,
             pill(t.status),
             t.status === 'submitted' || t.status === 'approved' || t.status === 'rejected'
               ? `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`
@@ -349,10 +483,11 @@ async function renderTimesheets() {
   `;
 }
 
-function mostRecentSunday() {
+function mostRecentMonday() {
   const d = new Date();
   const day = d.getDay(); // 0 = Sunday .. 6 = Saturday
-  d.setDate(d.getDate() - day);
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -367,14 +502,6 @@ function timesheetWeekDates(weekStarting) {
   return dates;
 }
 
-function timesheetDayLabel(date) {
-  const d = new Date(date + 'T00:00:00');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mon = d.toLocaleDateString('en-US', { month: 'short' });
-  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-  return { dateLabel: `${dd}-${mon}`, dayName };
-}
-
 let TS_CURRENT_ID = null;
 let TS_CURRENT_ENTRIES = [];
 
@@ -384,60 +511,78 @@ function openTimesheetModal(id) {
   TS_CURRENT_ENTRIES = ts ? ts.entries : [];
   document.getElementById('timesheetForm').reset();
   document.getElementById('timesheetModalTitle').textContent = ts ? 'Edit timesheet' : 'Fill timesheet';
-  document.getElementById('tsWeekStart').value = ts ? ts.weekStarting : mostRecentSunday();
+  document.getElementById('tsWeekStart').value = ts ? ts.weekStarting : mostRecentMonday();
   document.getElementById('tsNotes').value = ts ? (ts.notes || '') : '';
   renderTimesheetEntryRows();
   document.getElementById('timesheetModal').classList.add('show');
 }
 
+const TS_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thr', 'Fri', 'Sat'];
+
+function tsShortDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mon = d.toLocaleString('en-US', { month: 'short' });
+  return `${dd}-${mon}`;
+}
+
+// Days-as-columns grid: Date/day, Project, Working hours, Leave/Holiday — with an
+// auto-calculated "Total" column, matching the required timesheet layout.
 function renderTimesheetEntryRows() {
   const weekStart = document.getElementById('tsWeekStart').value;
   const container = document.getElementById('tsEntriesContainer');
   if (!weekStart) { container.innerHTML = ''; return; }
   const dates = timesheetWeekDates(weekStart);
-  const findEntry = (date) => TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
-
   container.innerHTML = `
-    <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+    <table class="ts-grid">
       <tr>
-        <th style="text-align:left; padding:4px 6px; width:110px;">Date/day</th>
-        ${dates.map(date => {
-          const { dateLabel, dayName } = timesheetDayLabel(date);
-          return `<th style="text-align:center; padding:4px 6px;">${dateLabel}<br><span class="muted" style="font-weight:400;">${dayName}</span></th>`;
-        }).join('')}
-        <th style="text-align:center; padding:4px 6px; width:56px;">Total</th>
+        <th style="text-align:left; white-space:nowrap;">Date/day</th>
+        ${dates.map((date, i) => `<th style="text-align:center;">${tsShortDate(date)}<br><span class="muted" style="font-weight:400;">${TS_DAY_NAMES[new Date(date + 'T00:00:00').getDay()]}</span></th>`).join('')}
+        <th style="text-align:center;">Total</th>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Project</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsProject${i}" value="${escapeHtml(findEntry(date).project || '')}" style="margin:0; width:100%; padding:4px 6px;" placeholder="Project"></td>`).join('')}
+        <td style="font-weight:600;">Project</td>
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td><input id="tsProject${i}" value="${escapeHtml(existing.project || '')}" style="width:72px;" placeholder="Project"></td>`;
+        }).join('')}
         <td></td>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Working hours</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${findEntry(date).workingHours || 0}" style="margin:0; width:100%; padding:4px 6px;" oninput="updateTimesheetTotals()"></td>`).join('')}
-        <td style="text-align:center; font-weight:600;" id="tsWorkTotal">0</td>
+        <td style="font-weight:600;">Working hours</td>
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td><input id="tsWorkHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.workHours || 0}" oninput="updateTimesheetTotal()"></td>`;
+        }).join('')}
+        <td style="text-align:center; font-weight:600;" id="tsWorkTotalCell">0</td>
       </tr>
       <tr>
-        <td style="padding:4px 6px; font-weight:600;">Leave/Holiday</td>
-        ${dates.map((date, i) => `<td style="padding:2px 4px;"><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${findEntry(date).leaveHours || 0}" style="margin:0; width:100%; padding:4px 6px;" oninput="updateTimesheetTotals()"></td>`).join('')}
-        <td style="text-align:center; font-weight:600;" id="tsLeaveTotal">0</td>
+        <td style="font-weight:600;">Leave/Holiday</td>
+        ${dates.map((date, i) => {
+          const existing = TS_CURRENT_ENTRIES.find(e => e.date === date) || {};
+          return `<td><input id="tsLeaveHours${i}" type="number" min="0" max="24" step="0.5" value="${existing.leaveHours || 0}" oninput="updateTimesheetTotal()"></td>`;
+        }).join('')}
+        <td style="text-align:center; font-weight:600;" id="tsLeaveTotalCell">0</td>
       </tr>
     </table>
   `;
-  updateTimesheetTotals();
+  updateTimesheetTotal();
 }
 
-function updateTimesheetTotals() {
-  let work = 0, leave = 0;
+function updateTimesheetTotal() {
+  let workTotal = 0, leaveTotal = 0;
   for (let i = 0; i < 7; i++) {
-    const w = document.getElementById('tsWorkHours' + i);
-    const l = document.getElementById('tsLeaveHours' + i);
-    if (w) work += Number(w.value) || 0;
-    if (l) leave += Number(l.value) || 0;
+    const workEl = document.getElementById('tsWorkHours' + i);
+    const leaveEl = document.getElementById('tsLeaveHours' + i);
+    if (workEl) workTotal += Number(workEl.value) || 0;
+    if (leaveEl) leaveTotal += Number(leaveEl.value) || 0;
   }
-  document.getElementById('tsWorkTotal').textContent = work;
-  document.getElementById('tsLeaveTotal').textContent = leave;
-  document.getElementById('tsTotalHours').innerHTML = `Working: <strong>${work}</strong> &nbsp;·&nbsp; Leave/Holiday: <strong>${leave}</strong>`;
+  document.getElementById('tsTotalHours').textContent = workTotal;
+  document.getElementById('tsTotalLeave').textContent = leaveTotal;
+  const workCell = document.getElementById('tsWorkTotalCell');
+  const leaveCell = document.getElementById('tsLeaveTotalCell');
+  if (workCell) workCell.textContent = workTotal;
+  if (leaveCell) leaveCell.textContent = leaveTotal;
 }
 
 function collectTimesheetEntries() {
@@ -445,9 +590,9 @@ function collectTimesheetEntries() {
   return timesheetWeekDates(weekStart).map((date, i) => ({
     date,
     project: document.getElementById('tsProject' + i).value.trim(),
-    workingHours: Number(document.getElementById('tsWorkHours' + i).value) || 0,
+    workHours: Number(document.getElementById('tsWorkHours' + i).value) || 0,
     leaveHours: Number(document.getElementById('tsLeaveHours' + i).value) || 0
-  })).filter(e => e.project || e.workingHours > 0 || e.leaveHours > 0);
+  })).filter(e => e.project || e.workHours > 0 || e.leaveHours > 0);
 }
 
 async function saveTimesheetDraft() {
@@ -736,8 +881,9 @@ async function toggleWorkflowStep(workflowId, stepId, done) {
 /* ---------------- Team approvals (manager only) ---------------- */
 async function renderTeamApprovals() {
   const { leave } = await api('/leave');
-  const { timesheets } = await api('/timesheets/team');
+  const { timesheets } = await api('/timesheets');
   TS_CACHE = timesheets;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'submitted');
   document.getElementById('main').innerHTML = `
     <h1>Team approvals</h1>
     <div class="subtitle">Leave requests and timesheets from people who report to you.</div>
@@ -760,9 +906,7 @@ async function renderTeamApprovals() {
       ${timesheets.length === 0 ? emptyState('No timesheets from your team yet') : renderTable(
         ['Employee', 'Week starting', 'Working hours', 'Leave/Holiday', 'Status', ''],
         timesheets.map(t => [
-          escapeHtml(t.employeeName), fmtDate(t.weekStarting),
-          t.totalWorkingHours ?? t.totalHours ?? 0, t.totalLeaveHours ?? 0,
-          pill(t.status),
+          escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours, t.totalLeaveHours || 0, pill(t.status),
           t.status === 'submitted' ? `<span class="section-actions">
             <button class="btn btn-ghost btn-sm" onclick="viewTeamTimesheet(${t.id})">View</button>
             <button class="btn btn-primary btn-sm" onclick="managerDecideTimesheet(${t.id}, 'approved')">Approve</button>
@@ -777,11 +921,8 @@ async function renderTeamApprovals() {
 function viewTeamTimesheet(id) {
   const ts = TS_CACHE.find(t => t.id === id);
   if (!ts) return;
-  const rows = (ts.entries || [])
-    .filter(e => e.project || e.workingHours || e.leaveHours)
-    .map(e => `${fmtDate(e.date)}: ${e.project || '—'} — worked ${e.workingHours || 0}h, leave ${e.leaveHours || 0}h`)
-    .join('\n');
-  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalWorkingHours ?? ts.totalHours ?? 0}h · Leave/Holiday: ${ts.totalLeaveHours ?? 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} — Work ${e.workHours || 0}h / Leave ${e.leaveHours || 0}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalHours}h  |  Leave/Holiday: ${ts.totalLeaveHours || 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
 }
 
 async function managerDecideTimesheet(id, status, comment) {

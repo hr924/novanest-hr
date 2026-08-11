@@ -1,12 +1,30 @@
 const express = require('express');
-const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { readDB, writeDB, nextId } = require('../db');
+const crypto = require('crypto');
+const { readDB, writeDB } = require('../db');
 const { requireLogin } = require('../middleware');
-const { sendMail } = require('../mailer');
-const sms = require('../sms');
+const { sendPasswordResetEmail } = require('../mailer');
+const { sendOtp, verifyProviderOtp, normalizePhone } = require('../otp');
 
 const router = express.Router();
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour — email link
+const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes — SMS OTP
+const OTP_RESET_TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes to actually set the new password after OTP is verified
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(String(otp)).digest('hex');
+}
+
+function findUserByPhone(db, phone) {
+  const employee = db.employees.find(e => normalizePhone(e.phone) === phone && phone.length === 10);
+  if (!employee) return null;
+  return db.users.find(u => u.employeeId === employee.id) || null;
+}
 
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
@@ -52,6 +70,9 @@ router.put('/me', requireLogin, (req, res) => {
     user.name = name.trim();
   }
   if (newPassword && newPassword.trim()) {
+    if (user.role === 'employee') {
+      return res.status(403).json({ error: 'Employees cannot set a new password here. Use "Forgot password?" on the sign-in page instead.' });
+    }
     user.password = bcrypt.hashSync(newPassword.trim(), 8);
   }
   writeDB(db);
@@ -60,187 +81,138 @@ router.put('/me', requireLogin, (req, res) => {
   res.json({ user: req.session.user });
 });
 
-const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-// Anyone: request a password reset link by email. Always responds with the
-// same generic message whether or not that email exists, so this endpoint
-// can't be used to discover which emails have accounts.
+// Step 1: employee requests a reset link by email.
+// Always responds with the same generic message, whether or not that email
+// exists, so this endpoint can't be used to check who has an account.
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  const generic = { message: 'If an account exists for that email, a password reset link has been sent.' };
-  if (!email || !String(email).trim()) {
+  const email = String(req.body.email || '').trim();
+  const genericMessage = 'If an account exists for that email, a password reset link has been sent.';
+  if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
   const db = readDB();
-  const user = db.users.find(u => u.email.toLowerCase() === String(email).trim().toLowerCase());
+  const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
   if (user) {
-    // Clear out any previous unused tokens for this user, then issue a
-    // fresh one — only the most recent reset link is ever valid.
-    db.passwordResets = db.passwordResets.filter(r => r.userId !== user.id);
     const token = crypto.randomBytes(32).toString('hex');
-    db.passwordResets.push({
-      token,
-      userId: user.id,
-      email: user.email,
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
-      used: false,
-      createdAt: new Date().toISOString()
-    });
+    user.resetTokenHash = hashToken(token);
+    user.resetTokenExpires = Date.now() + RESET_TOKEN_TTL_MS;
     writeDB(db);
 
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}`;
     try {
-      await sendMail({
-        to: user.email,
-        subject: 'Reset your Novanest HR password',
-        html: `
-          <p>Hi ${user.name || ''},</p>
-          <p>Someone requested a password reset for your Novanest HR account. Click below to choose a new password. This link expires in 1 hour and can only be used once.</p>
-          <p><a href="${resetUrl}" style="display:inline-block; padding:10px 18px; background:#03A9E7; color:#fff; text-decoration:none; border-radius:6px;">Reset password</a></p>
-          <p>Or copy this link: ${resetUrl}</p>
-          <p>If you didn't request this, you can safely ignore this email — your password won't change.</p>
-        `,
-        text: `Reset your Novanest HR password: ${resetUrl} (expires in 1 hour, one-time use)`
-      });
+      await sendPasswordResetEmail(user.email, token);
     } catch (err) {
-      console.error('[auth] Failed to send password reset email:', err.message);
-      // Don't leak the failure to the client — still return the generic message.
+      console.error('Failed to send password reset email:', err.message);
+      // Don't reveal delivery failures to the caller — same generic response either way.
     }
   }
 
-  res.json(generic);
+  res.json({ message: genericMessage });
 });
 
-// Anyone: request a password reset OTP by mobile number. Always responds
-// with the same generic message whether or not that number is on file, so
-// this can't be used to discover whose numbers are registered. Also rate
-// limited per mobile number so it can't be used to spam someone with SMS.
-// The actual OTP code is generated, sent, and verified by 2Factor — we
-// only track which of their session IDs belongs to which user/mobile.
-const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // local safety-net expiry (10 min)
-const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute between requests
-const OTP_MAX_ATTEMPTS = 5;
-
-function last10Digits(value) {
-  return String(value || '').replace(/\D/g, '').slice(-10);
-}
-
-router.post('/send-otp', async (req, res) => {
-  const { mobile } = req.body;
-  const digits = last10Digits(mobile);
-  const generic = { message: 'If that mobile number is on file, a verification code has been sent.' };
-  if (digits.length !== 10) {
+// Mobile OTP flow, step 1: employee enters their phone number, gets a 6-digit
+// SMS OTP. Same generic-response principle as the email flow — doesn't reveal
+// whether the number is registered.
+router.post('/forgot-password-mobile', async (req, res) => {
+  const phone = normalizePhone(req.body.mobile);
+  const genericMessage = 'If that mobile number is on an account, an OTP has been sent by SMS.';
+  if (phone.length !== 10) {
     return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
   }
 
   const db = readDB();
-
-  const recent = db.otpRequests.find(r => r.mobile === digits && !r.used && (Date.now() - new Date(r.createdAt).getTime()) < OTP_RESEND_COOLDOWN_MS);
-  if (recent) {
-    return res.status(429).json({ error: 'Please wait a minute before requesting another code.' });
-  }
-
-  const employee = db.employees.find(e => last10Digits(e.phone) === digits);
-  const user = employee ? db.users.find(u => u.employeeId === employee.id) : null;
+  const user = findUserByPhone(db, phone);
 
   if (user) {
     try {
-      const { sessionId } = await sms.sendOtp(digits);
-      db.otpRequests = db.otpRequests.filter(r => r.mobile !== digits);
-      db.otpRequests.push({
-        id: nextId(db, 'otpRequests'),
-        mobile: digits,
-        userId: user.id,
-        sessionId,
-        expiresAt: new Date(Date.now() + OTP_SESSION_TTL_MS).toISOString(),
-        attempts: 0,
-        used: false,
-        createdAt: new Date().toISOString()
-      });
+      const result = await sendOtp(phone);
+      if (result.mode === 'provider') {
+        // MSG91 verifies by mobile number rather than a session ID, so
+        // otpPhone (set below) is all we need to remember — this flag just
+        // records that verification should go through MSG91.
+        user.otpProvider = true;
+        delete user.otpHash;
+      } else {
+        user.otpHash = result.otpHash;
+        delete user.otpProvider;
+      }
+      user.otpExpires = Date.now() + OTP_TTL_MS;
+      user.otpPhone = phone;
       writeDB(db);
     } catch (err) {
-      console.error('[auth] Failed to send OTP SMS:', err.message);
+      console.error('Failed to send OTP:', err.message);
     }
   }
 
-  res.json(generic);
+  res.json({ message: genericMessage });
 });
 
-// Anyone: verify a mobile OTP. 2Factor checks the code itself against the
-// session we started; on success we issue a short-lived reset token (the
-// same kind the email flow uses), so the client can then call the existing
-// /reset-password endpoint to actually set the new password.
-router.post('/verify-otp', async (req, res) => {
-  const { mobile, otp } = req.body;
-  const digits = last10Digits(mobile);
-  if (digits.length !== 10 || !otp) {
-    return res.status(400).json({ error: 'Mobile number and code are required' });
+// Mobile OTP flow, step 2: employee enters the 6-digit code. On success,
+// issues the same kind of short-lived token the email flow uses, so the
+// existing /reset-password endpoint below can be reused unchanged for step 3.
+router.post('/verify-mobile-otp', async (req, res) => {
+  const phone = normalizePhone(req.body.mobile);
+  const otp = String(req.body.otp || '').trim();
+  if (phone.length !== 10 || !otp) {
+    return res.status(400).json({ error: 'Mobile number and OTP are required' });
   }
 
   const db = readDB();
-  const record = db.otpRequests.find(r => r.mobile === digits && !r.used);
-  if (!record || !record.sessionId || new Date(record.expiresAt) < new Date()) {
-    return res.status(400).json({ error: 'This code has expired. Please request a new one.' });
-  }
-  if (record.attempts >= OTP_MAX_ATTEMPTS) {
-    record.used = true;
-    writeDB(db);
-    return res.status(400).json({ error: 'Too many incorrect attempts. Please request a new code.' });
+  const user = findUserByPhone(db, phone);
+  if (!user || user.otpPhone !== phone || !user.otpExpires || user.otpExpires < Date.now()) {
+    return res.status(400).json({ error: 'This OTP has expired or was never requested. Please request a new one.' });
   }
 
-  let matched = false;
+  let verified = false;
   try {
-    matched = await sms.verifyOtp(record.sessionId, String(otp).trim());
+    if (user.otpProvider) {
+      verified = await verifyProviderOtp(phone, otp);
+    } else if (user.otpHash) {
+      verified = user.otpHash === hashOtp(otp);
+    }
   } catch (err) {
-    return res.status(502).json({ error: 'Could not verify the code right now. Please try again.' });
+    console.error('OTP verification error:', err.message);
   }
 
-  if (!matched) {
-    record.attempts += 1;
-    writeDB(db);
-    return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+  if (!verified) {
+    return res.status(400).json({ error: 'Incorrect OTP. Please try again.' });
   }
 
-  record.used = true;
+  delete user.otpProvider;
+  delete user.otpHash;
+  delete user.otpExpires;
+  delete user.otpPhone;
 
-  // Issue a reset token exactly like the email flow does, so the same
-  // /reset-password endpoint can be reused for the final "set new
-  // password" step.
-  db.passwordResets = db.passwordResets.filter(r => r.userId !== record.userId);
   const token = crypto.randomBytes(32).toString('hex');
-  db.passwordResets.push({
-    token,
-    userId: record.userId,
-    expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
-    used: false,
-    createdAt: new Date().toISOString()
-  });
+  user.resetTokenHash = hashToken(token);
+  user.resetTokenExpires = Date.now() + OTP_RESET_TOKEN_TTL_MS;
   writeDB(db);
-  res.json({ resetToken: token });
+
+  res.json({ token });
 });
 
-// Anyone with a valid, unexpired, unused token: set a new password.
+
 router.post('/reset-password', (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword || newPassword.trim().length < 6) {
+  const { token, password } = req.body;
+  if (!token || !password || String(password).trim().length < 6) {
     return res.status(400).json({ error: 'A valid token and a password of at least 6 characters are required' });
   }
+
   const db = readDB();
-  const record = db.passwordResets.find(r => r.token === token);
-  if (!record || record.used || new Date(record.expiresAt) < new Date()) {
+  const tokenHash = hashToken(String(token));
+  const user = db.users.find(u => u.resetTokenHash === tokenHash);
+
+  if (!user || !user.resetTokenExpires || user.resetTokenExpires < Date.now()) {
     return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
   }
-  const user = db.users.find(u => u.id === record.userId);
-  if (!user) {
-    return res.status(400).json({ error: 'Account not found' });
-  }
 
-  user.password = bcrypt.hashSync(newPassword.trim(), 8);
-  record.used = true;
+  user.password = bcrypt.hashSync(String(password).trim(), 8);
+  delete user.resetTokenHash;
+  delete user.resetTokenExpires;
   writeDB(db);
-  res.json({ ok: true });
+
+  res.json({ message: 'Your password has been updated. You can now sign in.' });
 });
 
 module.exports = router;

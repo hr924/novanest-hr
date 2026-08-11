@@ -240,4 +240,25 @@ router.delete('/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: reset an existing login's password directly (no email required).
+// Useful when email delivery isn't set up yet, or for resetting several
+// employees' passwords at once.
+router.post('/:id/reset-password', requireAdmin, (req, res) => {
+  const { password } = req.body;
+  const db = readDB();
+  const employee = db.employees.find(e => e.id === Number(req.params.id));
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+  const user = db.users.find(u => u.employeeId === employee.id);
+  if (!user) return res.status(400).json({ error: 'This employee does not have a login account yet' });
+
+  const plainPassword = password && password.trim() ? password.trim() : genPassword();
+  user.password = bcrypt.hashSync(plainPassword, 8);
+  // Invalidate any pending self-service reset link so it can't be used after this.
+  delete user.resetTokenHash;
+  delete user.resetTokenExpires;
+  writeDB(db);
+  res.json({ credentials: { email: user.email, password: plainPassword } });
+});
+
 module.exports = router;

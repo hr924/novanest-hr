@@ -28,58 +28,7 @@ npm start
 
 The server starts at **http://localhost:3000**.
 
-## Password reset emails (forgot password)
-
-Employees can reset a forgotten password from the login page ("Forgot
-password?"). This sends a one-time reset link by email, so it needs SMTP
-credentials — set these environment variables before starting the server:
-
-```bash
-SMTP_HOST=smtp.yourprovider.com
-SMTP_PORT=587
-SMTP_USER=your-smtp-username
-SMTP_PASS=your-smtp-password-or-api-key
-SMTP_FROM="Novanest HR <hr@yourcompany.com>"
-npm start
-```
-
-- Use `SMTP_PORT=465` with `SMTP_SECURE=true` if your provider requires SSL
-  instead of STARTTLS.
-- Works with any standard SMTP provider — Gmail (with an app password),
-  SendGrid, Mailgun, Amazon SES, your company's own mail server, etc.
-- If these aren't set, the app still runs fine — the reset request is
-  accepted and logged to the server console, but no email actually goes
-  out. Reset links expire after 1 hour and can only be used once.
-
-### Mobile OTP reset (alternative to email)
-
-The "Forgot password" page also has a **Reset by mobile OTP** tab, for
-resetting via a 4-digit SMS code sent to the mobile number saved on the
-employee's profile (`Admin → Employees → phone field`). This uses
-[2Factor.in](https://2factor.in), which generates, sends, and verifies the
-OTP on their end:
-
-```bash
-TWO_FACTOR_API_KEY=your-2factor-api-key
-npm start
-```
-
-- Find your API key in your 2Factor dashboard.
-- If your 2Factor account is on a trial/unverified plan, it will typically
-  only deliver OTPs to mobile numbers registered/whitelisted in your
-  dashboard (under something like "Registered Numbers" or "Test Numbers").
-  This restriction lifts once the account is KYC/DLT verified.
-- If `TWO_FACTOR_API_KEY` isn't set, OTP requests are still accepted and
-  logged to the server console, but no SMS actually goes out.
-- Codes expire after 5 minutes (locally tracked as a safety net; 2Factor
-  enforces its own expiry too), allow 5 incorrect attempts before locking,
-  and requests are limited to once per minute per number.
-- To sanity-check your setup directly, open this URL in a browser (with
-  your real key and a real number) — you should get an SMS and a
-  `{"Status":"Success",...}` response:
-  `https://2factor.in/API/V1/YOUR_API_KEY/SMS/9999999999/AUTOGEN`
-
-
+## ⚠️ Updating the app without losing your data
 
 All employee/payroll data lives in one file: `data/db.json`. That file is
 **not** part of the app's source code, so whenever you receive an updated
