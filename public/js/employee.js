@@ -6,7 +6,8 @@ async function init() {
   document.getElementById('whoName').textContent = CURRENT_USER.name;
   document.getElementById('whoRole').textContent = CURRENT_USER.role === 'manager' ? 'Manager' : 'Employee';
   if (CURRENT_USER.role === 'manager') {
-    document.getElementById('teamApprovalsLink').style.display = 'block';
+    const teamLinkEl = document.getElementById('teamApprovalsLink');
+    if (teamLinkEl) teamLinkEl.style.display = 'block';
   }
 
   document.querySelectorAll('.sidebar-link').forEach(link => {
@@ -42,12 +43,13 @@ async function init() {
   document.getElementById('leaveForm').addEventListener('submit', submitLeave);
   document.getElementById('caseForm').addEventListener('submit', submitCase);
 
-  await switchView('profile');
+  await switchView('dashboard');
 }
 
 async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
+    dashboard: renderDashboard,
     profile: renderProfile, attendance: renderAttendance, leave: renderLeave,
     timesheets: renderTimesheets,
     payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
@@ -68,6 +70,90 @@ function emptyState(msg) { return `<div class="empty-state"><div class="glyph">â
 function renderTable(headers, rows) {
   return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
   <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+/* ---------------- Dashboard ---------------- */
+async function renderDashboard() {
+  const [
+    attendanceRes, leaveRes, timesheetsRes, payslipsRes, performanceRes,
+    documentsRes, assetsRes, casesRes, tasksRes, surveysRes, kbRes, workflowsRes
+  ] = await Promise.all([
+    api('/attendance').catch(() => ({ attendance: [] })),
+    api('/leave').catch(() => ({ leave: [] })),
+    api('/timesheets').catch(() => ({ timesheets: [] })),
+    api('/payslips').catch(() => ({ payslips: [] })),
+    api('/performance').catch(() => ({ performance: [] })),
+    api('/documents').catch(() => ({ documents: [] })),
+    api('/assets').catch(() => ({ assets: [] })),
+    api('/cases').catch(() => ({ cases: [] })),
+    api('/tasks').catch(() => ({ tasks: [] })),
+    api('/surveys').catch(() => ({ surveys: [] })),
+    api('/knowledgebase').catch(() => ({ articles: [] })),
+    api('/workflows').catch(() => ({ workflows: [] }))
+  ]);
+  const attendance = attendanceRes.attendance || [];
+  const leave = leaveRes.leave || [];
+  const timesheets = timesheetsRes.timesheets || [];
+  const payslips = payslipsRes.payslips || [];
+  const performance = performanceRes.performance || [];
+  const documents = documentsRes.documents || [];
+  const assets = assetsRes.assets || [];
+  const cases = casesRes.cases || [];
+  const tasks = tasksRes.tasks || [];
+  const surveys = surveysRes.surveys || [];
+  const kbArticles = kbRes.articles || [];
+  const workflows = workflowsRes.workflows || [];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr' || l.status === 'pending').length;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'draft' || t.status === 'rejected').length;
+  const currentMonth = todayStr.slice(0, 7);
+  const payslipsThisMonth = payslips.filter(p => p.month === currentMonth).length;
+  const openCases = cases.filter(c => c.status !== 'resolved').length;
+  const myAssets = assets.length;
+  const pendingTasks = tasks.filter(t => t.status !== 'done').length;
+  const activeSurveys = surveys.filter(s => s.status === 'active' || !s.status).length;
+  const presentDaysThisMonth = attendance.filter(a => a.date && a.date.startsWith(currentMonth)).length;
+
+  const MODULES = [
+    { icon: 'profile', title: 'My profile', view: 'profile', status: 'View & edit', tone: 'idle' },
+    { icon: 'attendance', title: 'Attendance', view: 'attendance', status: `${presentDaysThisMonth} days this month`, tone: 'good' },
+    { icon: 'leave', title: 'Leave', view: 'leave', status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
+    { icon: 'timesheets', title: 'Timesheets', view: 'timesheets', status: pendingTimesheets ? `${pendingTimesheets} to submit` : 'Up to date', tone: pendingTimesheets ? 'warn' : 'good' },
+    ...(CURRENT_USER.role === 'manager' ? [
+      { icon: 'teamApprovals', title: 'Team approvals', view: 'teamApprovals', status: 'Review requests', tone: 'idle' }
+    ] : []),
+    { icon: 'payslips', title: 'Payslips', view: 'payslips', status: payslipsThisMonth ? 'Latest available' : 'Not yet processed', tone: payslipsThisMonth ? 'good' : 'idle' },
+    { icon: 'form16', title: 'Form 16', view: 'form16', status: 'Annual document', tone: 'idle' },
+    { icon: 'performance', title: 'Performance', view: 'performance', status: performance.length ? `${performance.length} reviews` : 'No reviews yet', tone: performance.length ? 'good' : 'idle' },
+    { icon: 'tasks', title: 'Tasks', view: 'tasks', status: pendingTasks ? `${pendingTasks} pending` : 'All done', tone: pendingTasks ? 'warn' : 'good' },
+    { icon: 'documents', title: 'Documents', view: 'documents', status: `${documents.length} files`, tone: 'good' },
+    { icon: 'assets', title: 'My assets', view: 'assets', status: `${myAssets} assigned`, tone: 'good' },
+    { icon: 'cases', title: 'Helpdesk', view: 'cases', status: openCases ? `${openCases} open` : 'All resolved', tone: openCases ? 'warn' : 'good' },
+    { icon: 'surveys', title: 'Surveys', view: 'surveys', status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
+    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase', status: `${kbArticles.length} articles`, tone: 'good' },
+    { icon: 'workflows', title: 'Checklists', view: 'workflows', status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' }
+  ];
+  const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
+  const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
+  const moduleGridHtml = MODULES.map((m) => `
+    <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
+      <div class="module-icon ${SIDEBAR_ICON_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div>
+        <div class="module-title">${escapeHtml(m.title)}</div>
+        <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
+      </div>
+      <div class="module-badge ${m.tone === 'warn' ? 'warn' : 'good'}">${m.tone === 'warn' ? warnSvg : checkSvg}</div>
+    </div>`).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="main-head">
+      <div><h1>Dashboard</h1><div class="subtitle">Your workspace at a glance.</div></div>
+    </div>
+    <div class="module-grid">
+      ${moduleGridHtml}
+    </div>
+  `;
 }
 
 /* ---------------- Profile ---------------- */

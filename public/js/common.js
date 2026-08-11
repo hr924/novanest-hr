@@ -1,3 +1,77 @@
+/* ---------------- Sidebar icons ----------------
+   Small feather-style icon set, keyed by the sidebar link's data-view.
+   Decorating the sidebar here (instead of hand-writing <svg> in every
+   HTML file) keeps admin.html / employee.html simple and makes it easy
+   to add a new nav item later — it just falls back to a generic dot icon. */
+const SIDEBAR_ICONS = {
+  dashboard: '<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>',
+  overview: '<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="none"/>',
+  jobs: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none"/>',
+  applications: '<path d="M4 4h16v12H8l-4 4V4z" fill="none"/>',
+  employees: '<circle cx="9" cy="8" r="3"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7" fill="none"/><path d="M16 4.2a3 3 0 0 1 0 5.8M21 21c0-3-2-5.5-5-6.4" fill="none"/>',
+  leave: '<rect x="3" y="5" width="18" height="16" rx="2" fill="none"/><path d="M3 10h18M8 3v4M16 3v4" fill="none"/>',
+  leaveCalendar: '<rect x="3" y="5" width="18" height="16" rx="2" fill="none"/><path d="M3 10h18M8 3v4M16 3v4" fill="none"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/>',
+  timesheets: '<circle cx="12" cy="13" r="8" fill="none"/><path d="M12 9v4l3 2M9 2h6" fill="none"/>',
+  teamApprovals: '<path d="M9 12l2 2 4-4" fill="none"/><circle cx="12" cy="12" r="9" fill="none"/>',
+  attendance: '<path d="M9 12l2 2 4-4" fill="none"/><circle cx="12" cy="12" r="9" fill="none"/>',
+  payslips: '<rect x="2" y="6" width="20" height="12" rx="2" fill="none"/><circle cx="12" cy="12" r="2.5" fill="none"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0" fill="none"/>',
+  form16: '<path d="M6 2h9l5 5v15H6V2z" fill="none"/><path d="M15 2v5h5M9 13h6M9 17h6" fill="none"/>',
+  performance: '<path d="M4 20V10M12 20V4M20 20v-7" fill="none"/>',
+  tasks: '<rect x="3" y="4" width="18" height="17" rx="2" fill="none"/><path d="M8 11l2 2 4-4M7 16h6" fill="none"/>',
+  documents: '<path d="M4 20V6a2 2 0 0 1 2-2h6l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none"/><path d="M12 4v4h4" fill="none"/>',
+  assets: '<rect x="3" y="4" width="18" height="12" rx="2" fill="none"/><path d="M8 20h8M12 16v4" fill="none"/>',
+  cases: '<circle cx="12" cy="12" r="9" fill="none"/><path d="M12 8v5M12 16.5v.01" fill="none"/>',
+  surveys: '<path d="M4 20V10M11 20V4M18 20v-7" fill="none"/>',
+  knowledgebase: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5z" fill="none"/><path d="M20 19H6.5A2.5 2.5 0 0 0 4 21.5" fill="none"/>',
+  workflows: '<path d="M8 6h13M8 12h13M8 18h13" fill="none"/><circle cx="3.5" cy="6" r="1.5"/><circle cx="3.5" cy="12" r="1.5"/><circle cx="3.5" cy="18" r="1.5"/>',
+  reports: '<circle cx="12" cy="12" r="9" fill="none"/><path d="M12 3v9l7 4" fill="none"/>',
+  backups: '<ellipse cx="12" cy="5" rx="8" ry="3" fill="none"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" fill="none"/>'
+};
+const SIDEBAR_ICON_DEFAULT = '<circle cx="12" cy="12" r="3"/>';
+
+// Fixed color per module — matches the tint used on that module's status
+// card exactly, so "Payroll" is always teal whether you're looking at the
+// navbar or the dashboard card. Related items (e.g. leave + leave calendar,
+// payslips + form16) intentionally share a color as a group, rather than
+// colors cycling by position and landing on arbitrary neighbors.
+const SIDEBAR_ICON_TINTS = {
+  overview: 'm-slate',
+  profile: 'm-blue',
+  employees: 'm-blue',
+  payslips: 'm-teal',
+  form16: 'm-teal',
+  backups: 'm-teal',
+  attendance: 'm-green',
+  performance: 'm-indigo',
+  workflows: 'm-indigo',
+  jobs: 'm-amber',
+  leave: 'm-amber',
+  leaveCalendar: 'm-amber',
+  applications: 'm-pink',
+  timesheets: 'm-slate',
+  knowledgebase: 'm-slate',
+  documents: 'm-violet',
+  tasks: 'm-violet',
+  assets: 'm-cyan',
+  reports: 'm-cyan',
+  cases: 'm-rose',
+  surveys: 'm-rose',
+};
+const SIDEBAR_ICON_TINT_DEFAULT = 'm-slate';
+
+function decorateSidebarIcons() {
+  document.querySelectorAll('.sidebar-link[data-view]').forEach((link) => {
+    if (link.querySelector('.ico')) return; // already decorated
+    const view = link.dataset.view;
+    const path = SIDEBAR_ICONS[view] || SIDEBAR_ICON_DEFAULT;
+    const tint = SIDEBAR_ICON_TINTS[view] || SIDEBAR_ICON_TINT_DEFAULT;
+    const label = link.textContent;
+    link.innerHTML = `<span class="ico ${tint}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span><span>${label}</span>`;
+  });
+}
+document.addEventListener('DOMContentLoaded', decorateSidebarIcons);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js').then((reg) => {

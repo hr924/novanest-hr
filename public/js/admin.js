@@ -1,6 +1,7 @@
 let CURRENT_USER = null;
 let VIEW = 'overview';
 let CACHE = { jobs: [], applications: [], employees: [], leave: [], attendance: [] };
+let OVERVIEW_CHARTS = {};
 
 async function init() {
   CURRENT_USER = await requireSession(['admin']);
@@ -125,24 +126,187 @@ function closeModal(id) {
 
 /* ---------------- Overview ---------------- */
 async function renderOverview() {
-  const [{ jobs }, { applications }, { employees }, { leave }] = await Promise.all([
-    api('/jobs?all=1'), api('/applications'), api('/employees'), api('/leave')
+  const [
+    { jobs }, { applications }, { employees }, { leave },
+    attendanceRes, timesheetsRes, payslipsRes, performanceRes, documentsRes, assetsRes, casesRes,
+    tasksRes, surveysRes, kbRes, workflowsRes, backupsRes
+  ] = await Promise.all([
+    api('/jobs?all=1'), api('/applications'), api('/employees'), api('/leave'),
+    api('/attendance').catch(() => ({ attendance: [] })),
+    api('/timesheets').catch(() => ({ timesheets: [] })),
+    api('/payslips').catch(() => ({ payslips: [] })),
+    api('/performance').catch(() => ({ performance: [] })),
+    api('/documents').catch(() => ({ documents: [] })),
+    api('/assets').catch(() => ({ assets: [] })),
+    api('/cases').catch(() => ({ cases: [] })),
+    api('/tasks').catch(() => ({ tasks: [] })),
+    api('/surveys').catch(() => ({ surveys: [] })),
+    api('/knowledgebase').catch(() => ({ articles: [] })),
+    api('/workflows').catch(() => ({ workflows: [] })),
+    api('/backups').catch(() => ({ backups: [] }))
   ]);
-  CACHE = { ...CACHE, jobs, applications, employees, leave };
+  const attendance = attendanceRes.attendance || [];
+  const timesheets = timesheetsRes.timesheets || [];
+  const payslips = payslipsRes.payslips || [];
+  const performance = performanceRes.performance || [];
+  const documents = documentsRes.documents || [];
+  const assets = assetsRes.assets || [];
+  const cases = casesRes.cases || [];
+  const tasks = tasksRes.tasks || [];
+  const surveys = surveysRes.surveys || [];
+  const kbArticles = kbRes.articles || [];
+  const workflows = workflowsRes.workflows || [];
+  const backups = backupsRes.backups || [];
+  CACHE = { ...CACHE, jobs, applications, employees, leave, attendance };
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeEmployees = employees.filter(e => e.status === 'active');
+  const presentToday = new Set(attendance.filter(a => a.date === todayStr).map(a => a.employeeId)).size;
+  const onLeaveToday = leave.filter(l => l.overallStatus === 'approved' && l.startDate <= todayStr && l.endDate >= todayStr).length;
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr' || l.status === 'pending').length;
+  const pendingTimesheets = timesheets.filter(t => t.status === 'submitted').length;
   const openJobs = jobs.filter(j => j.status === 'open').length;
-  const pendingApps = applications.filter(a => ['applied', 'screening', 'interview'].includes(a.status)).length;
-  const pendingLeave = leave.filter(l => l.status === 'pending').length;
+
+  // ---- Module status grid: quick health snapshot per module ----
+  const currentMonth = todayStr.slice(0, 7); // 'YYYY-MM'
+  const payslipsThisMonth = payslips.filter(p => p.month === currentMonth).length;
+  const hiredCount = applications.filter(a => a.status === 'hired').length;
+  const openCases = cases.filter(c => c.status !== 'resolved').length;
+  const assignedAssets = assets.filter(a => a.status === 'assigned').length;
+  const pendingTasks = tasks.filter(t => t.status !== 'done').length;
+  const activeSurveys = surveys.filter(s => s.status === 'active' || !s.status).length;
+  const recentBackup = backups.length > 0;
+
+  const MODULES = [
+    { icon: 'jobs', title: 'Recruitment', view: 'jobs',
+      status: `${openJobs} open roles`, tone: openJobs ? 'good' : 'idle' },
+    { icon: 'applications', title: 'Onboarding', view: 'applications',
+      status: `${hiredCount} hired`, tone: hiredCount ? 'good' : 'idle' },
+    { icon: 'employees', title: 'Workforce', view: 'employees',
+      status: `${activeEmployees.length} active`, tone: 'good' },
+    { icon: 'leave', title: 'Leave', view: 'leave',
+      status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
+    { icon: 'timesheets', title: 'Timesheets', view: 'timesheets',
+      status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date',
+      tone: pendingTimesheets ? 'warn' : 'good' },
+    { icon: 'attendance', title: 'Attendance', view: 'attendance',
+      status: `${presentToday} present today`, tone: 'good' },
+    { icon: 'payslips', title: 'Payroll', view: 'payslips',
+      status: payslipsThisMonth ? `${payslipsThisMonth} processed` : 'Not run yet',
+      tone: payslipsThisMonth ? 'good' : 'warn' },
+    { icon: 'form16', title: 'Form 16', view: 'form16',
+      status: 'Annual document', tone: 'idle' },
+    { icon: 'performance', title: 'Performance', view: 'performance',
+      status: performance.length ? `${performance.length} reviews` : 'No reviews yet',
+      tone: performance.length ? 'good' : 'idle' },
+    { icon: 'tasks', title: 'Tasks', view: 'tasks',
+      status: pendingTasks ? `${pendingTasks} pending` : 'All done', tone: pendingTasks ? 'warn' : 'good' },
+    { icon: 'documents', title: 'Documents', view: 'documents',
+      status: `${documents.length} files`, tone: 'good' },
+    { icon: 'assets', title: 'Assets', view: 'assets',
+      status: `${assignedAssets} assigned`, tone: 'good' },
+    { icon: 'cases', title: 'Helpdesk', view: 'cases',
+      status: openCases ? `${openCases} open` : 'All resolved',
+      tone: openCases ? 'warn' : 'good' },
+    { icon: 'surveys', title: 'Surveys', view: 'surveys',
+      status: activeSurveys ? `${activeSurveys} active` : 'No active surveys', tone: activeSurveys ? 'good' : 'idle' },
+    { icon: 'knowledgebase', title: 'Knowledge base', view: 'knowledgebase',
+      status: `${kbArticles.length} articles`, tone: 'good' },
+    { icon: 'workflows', title: 'Workflows', view: 'workflows',
+      status: `${workflows.length} active`, tone: workflows.length ? 'good' : 'idle' },
+    { icon: 'reports', title: 'Reports', view: 'reports',
+      status: 'View reports', tone: 'idle' },
+    { icon: 'backups', title: 'Backups', view: 'backups',
+      status: recentBackup ? 'Up to date' : 'No backups yet', tone: recentBackup ? 'good' : 'warn' },
+  ];
+  const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
+  const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
+  const moduleGridHtml = MODULES.map((m) => `
+    <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
+      <div class="module-icon ${SIDEBAR_ICON_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div>
+        <div class="module-title">${escapeHtml(m.title)}</div>
+        <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
+      </div>
+      <div class="module-badge ${m.tone === 'warn' ? 'warn' : 'good'}">${m.tone === 'warn' ? warnSvg : checkSvg}</div>
+    </div>`).join('');
+
+  // ---- Attendance overview: check-ins per day for the current week (Mon-Sun) ----
+  const now = new Date();
+  const dow = now.getDay(); // 0 = Sun
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0, 0, 0, 0);
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    weekDays.push(d.toISOString().slice(0, 10));
+  }
+  const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekCounts = weekDays.map(ds => new Set(attendance.filter(a => a.date === ds).map(a => a.employeeId)).size);
+
+  // ---- Leave summary: breakdown by type across all requests ----
+  const leaveTypeColors = { Casual: '#03A9E7', Sick: '#2ED47A', Personal: '#184B76', Bereavement: '#FF9F6B', Other: '#F0506E' };
+  const typeCounts = {};
+  leave.forEach(l => { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
+  const leaveTypes = Object.keys(typeCounts);
+  const leaveTotal = leave.length;
+
+  // ---- Recent activity feed, newest first across a few sources ----
+  const activity = [];
+  applications.slice(0, 3).forEach(a => activity.push({ text: `${a.candidateName} applied for ${a.jobTitle}`, date: a.appliedDate, icon: 'jobs' }));
+  leave.slice(0, 3).forEach(l => activity.push({ text: `${l.employeeName} requested ${l.type} leave`, date: l.requestedDate || l.startDate, icon: 'leave' }));
+  [...employees].sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate)).slice(0, 2).forEach(e => activity.push({ text: `${e.name} joined as ${e.position}`, date: e.joinDate, icon: 'employees' }));
+  activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const activityHtml = activity.slice(0, 6).map(a => `
+    <div class="activity-item">
+      <div class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[a.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div><div class="a-text">${escapeHtml(a.text)}</div><div class="a-time">${fmtDate(a.date)}</div></div>
+    </div>`).join('') || emptyState('No recent activity yet');
 
   document.getElementById('main').innerHTML = `
-    <h1>Overview</h1>
-    <div class="subtitle">Snapshot of recruitment and workforce activity.</div>
-    <div class="stat-row">
-      <div class="stat-card"><div class="num">${openJobs}</div><div class="label">Open positions</div></div>
-      <div class="stat-card"><div class="num">${pendingApps}</div><div class="label">Active applications</div></div>
-      <div class="stat-card"><div class="num">${employees.length}</div><div class="label">Employees</div></div>
-      <div class="stat-card"><div class="num">${pendingLeave}</div><div class="label">Leave requests pending</div></div>
+    <div class="main-head">
+      <div><h1>Dashboard</h1><div class="subtitle">Snapshot of recruitment and workforce activity.</div></div>
+      <div class="head-action"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></div>
     </div>
-    <div class="filetab">Recent applications</div>
+
+    <div class="module-grid">
+      ${moduleGridHtml}
+    </div>
+
+    <div class="dash-grid-2">
+      <div class="chart-card">
+        <div class="chart-card-head"><h3>Attendance Overview</h3><span class="chip">This Week</span></div>
+        <div class="chart-wrap"><canvas id="attendanceChart"></canvas></div>
+      </div>
+      <div class="chart-card donut-wrap">
+        <div class="chart-card-head" style="width:100%;"><h3>Leave Summary</h3></div>
+        <div class="donut-canvas-holder">
+          <canvas id="leaveDonut"></canvas>
+          <div class="donut-center"><div class="n">${leaveTotal}</div><div class="t">Total</div></div>
+        </div>
+        <div class="donut-legend">
+          ${leaveTypes.length === 0 ? `<div class="muted" style="font-size:12.5px; text-align:center;">No leave data yet</div>` : leaveTypes.map(t => `
+            <div class="li"><div class="k"><span class="dot" style="background:${leaveTypeColors[t] || '#8D8BA7'}"></span>${escapeHtml(t)}</div><div class="v">${typeCounts[t]}</div></div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid-bottom">
+      <div class="activity-card">
+        <h3>Recent Activities</h3>
+        ${activityHtml}
+      </div>
+      <div class="ai-card">
+        <div>
+          <h3>AI Ask - Your HR Assistant</h3>
+          <p>Get instant answers to HR policies, leave balance, payroll, and more.</p>
+        </div>
+        <button class="btn-ai" onclick="switchView('knowledgebase'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='knowledgebase'));">Ask Now →</button>
+      </div>
+    </div>
+
+    <div class="filetab" style="margin-top:22px;">Recent applications</div>
     <div class="panel" style="border-top-left-radius:0;">
       <div class="panel-body">
         ${applications.length === 0 ? emptyState('No applications yet') : renderTable(
@@ -152,6 +316,42 @@ async function renderOverview() {
       </div>
     </div>
   `;
+
+  drawOverviewCharts(weekLabels, weekCounts, leaveTypes, leaveTypes.map(t => typeCounts[t]), leaveTypes.map(t => leaveTypeColors[t] || '#8D8BA7'));
+}
+
+function drawOverviewCharts(weekLabels, weekCounts, donutLabels, donutData, donutColors) {
+  if (typeof Chart === 'undefined') return;
+  if (OVERVIEW_CHARTS.bar) OVERVIEW_CHARTS.bar.destroy();
+  if (OVERVIEW_CHARTS.donut) OVERVIEW_CHARTS.donut.destroy();
+
+  const barCtx = document.getElementById('attendanceChart');
+  if (barCtx) {
+    OVERVIEW_CHARTS.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: weekLabels,
+        datasets: [{ data: weekCounts, backgroundColor: '#03A9E7', borderRadius: 6, maxBarThickness: 34 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#ECEBF6' }, ticks: { color: '#8D8BA7', font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { color: '#8D8BA7', font: { size: 11 } } }
+        }
+      }
+    });
+  }
+
+  const donutCtx = document.getElementById('leaveDonut');
+  if (donutCtx && donutData.length) {
+    OVERVIEW_CHARTS.donut = new Chart(donutCtx, {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+    });
+  }
 }
 
 function emptyState(msg) {
