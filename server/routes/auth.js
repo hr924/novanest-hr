@@ -117,9 +117,9 @@ router.post('/forgot-password', async (req, res) => {
 // with the same generic message whether or not that number is on file, so
 // this can't be used to discover whose numbers are registered. Also rate
 // limited per mobile number so it can't be used to spam someone with SMS.
-// The actual OTP code is generated, sent, and verified by 2Factor — we
-// only track which of their session IDs belongs to which user/mobile.
-const OTP_SESSION_TTL_MS = 10 * 60 * 1000; // local safety-net expiry (10 min)
+// Unlike 2Factor, MSG91's Flow API only delivers the SMS — the OTP itself
+// is generated, hashed, and verified here.
+const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute between requests
 const OTP_MAX_ATTEMPTS = 5;
 
@@ -146,20 +146,22 @@ router.post('/send-otp', async (req, res) => {
   const user = employee ? db.users.find(u => u.employeeId === employee.id) : null;
 
   if (user) {
+    const otp = String(Math.floor(1000 + Math.random() * 9000)); // 4-digit code
+    db.otpRequests = db.otpRequests.filter(r => r.mobile !== digits);
+    db.otpRequests.push({
+      id: nextId(db, 'otpRequests'),
+      mobile: digits,
+      userId: user.id,
+      otpHash: bcrypt.hashSync(otp, 8),
+      expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
+      attempts: 0,
+      used: false,
+      createdAt: new Date().toISOString()
+    });
+    writeDB(db);
+
     try {
-      const { sessionId } = await sms.sendOtp(digits);
-      db.otpRequests = db.otpRequests.filter(r => r.mobile !== digits);
-      db.otpRequests.push({
-        id: nextId(db, 'otpRequests'),
-        mobile: digits,
-        userId: user.id,
-        sessionId,
-        expiresAt: new Date(Date.now() + OTP_SESSION_TTL_MS).toISOString(),
-        attempts: 0,
-        used: false,
-        createdAt: new Date().toISOString()
-      });
-      writeDB(db);
+      await sms.sendOtpSms(digits, otp);
     } catch (err) {
       console.error('[auth] Failed to send OTP SMS:', err.message);
     }
@@ -168,11 +170,11 @@ router.post('/send-otp', async (req, res) => {
   res.json(generic);
 });
 
-// Anyone: verify a mobile OTP. 2Factor checks the code itself against the
-// session we started; on success we issue a short-lived reset token (the
-// same kind the email flow uses), so the client can then call the existing
-// /reset-password endpoint to actually set the new password.
-router.post('/verify-otp', async (req, res) => {
+// Anyone: verify a mobile OTP against the hash we generated. On success,
+// issues a short-lived reset token (the same kind the email flow uses), so
+// the client can then call the existing /reset-password endpoint to
+// actually set the new password.
+router.post('/verify-otp', (req, res) => {
   const { mobile, otp } = req.body;
   const digits = last10Digits(mobile);
   if (digits.length !== 10 || !otp) {
@@ -181,7 +183,7 @@ router.post('/verify-otp', async (req, res) => {
 
   const db = readDB();
   const record = db.otpRequests.find(r => r.mobile === digits && !r.used);
-  if (!record || !record.sessionId || new Date(record.expiresAt) < new Date()) {
+  if (!record || new Date(record.expiresAt) < new Date()) {
     return res.status(400).json({ error: 'This code has expired. Please request a new one.' });
   }
   if (record.attempts >= OTP_MAX_ATTEMPTS) {
@@ -190,14 +192,7 @@ router.post('/verify-otp', async (req, res) => {
     return res.status(400).json({ error: 'Too many incorrect attempts. Please request a new code.' });
   }
 
-  let matched = false;
-  try {
-    matched = await sms.verifyOtp(record.sessionId, String(otp).trim());
-  } catch (err) {
-    return res.status(502).json({ error: 'Could not verify the code right now. Please try again.' });
-  }
-
-  if (!matched) {
+  if (!bcrypt.compareSync(String(otp).trim(), record.otpHash)) {
     record.attempts += 1;
     writeDB(db);
     return res.status(400).json({ error: 'Incorrect code. Please try again.' });

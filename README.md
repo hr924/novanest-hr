@@ -53,31 +53,27 @@ npm start
 
 ### Mobile OTP reset (alternative to email)
 
-The "Forgot password" page also has a **Reset by mobile OTP** tab, for
-resetting via a 4-digit SMS code sent to the mobile number saved on the
-employee's profile (`Admin → Employees → phone field`). This uses
-[2Factor.in](https://2factor.in), which generates, sends, and verifies the
-OTP on their end:
+The "Forgot password" page has a mobile OTP flow, resetting via a 4-digit
+SMS code sent to the mobile number saved on the employee's profile
+(`Admin → Employees → phone field`). This uses MSG91 — the OTP itself is
+generated and verified by this app, MSG91 only delivers the SMS:
 
 ```bash
-TWO_FACTOR_API_KEY=your-2factor-api-key
+MSG91_AUTH_KEY=your-msg91-auth-key
+MSG91_TEMPLATE_ID=your-approved-template-id
 npm start
 ```
 
-- Find your API key in your 2Factor dashboard.
-- If your 2Factor account is on a trial/unverified plan, it will typically
-  only deliver OTPs to mobile numbers registered/whitelisted in your
-  dashboard (under something like "Registered Numbers" or "Test Numbers").
-  This restriction lifts once the account is KYC/DLT verified.
-- If `TWO_FACTOR_API_KEY` isn't set, OTP requests are still accepted and
-  logged to the server console, but no SMS actually goes out.
-- Codes expire after 5 minutes (locally tracked as a safety net; 2Factor
-  enforces its own expiry too), allow 5 incorrect attempts before locking,
+- MSG91 requires a **DLT-approved transactional SMS template** to send to
+  Indian numbers — this needs to be set up in your MSG91 account first
+  (this is what the "Header"/DLT registration process was for).
+  The template must contain exactly one variable for the code itself, e.g.
+  `Your Novanest HR verification code is ##OTP##`. If your template uses a
+  different variable name than `OTP`, set `MSG91_OTP_VAR` to match it.
+- If these aren't set, OTP requests are still accepted and logged to the
+  server console, but no SMS actually goes out.
+- Codes expire after 5 minutes, allow 5 incorrect attempts before locking,
   and requests are limited to once per minute per number.
-- To sanity-check your setup directly, open this URL in a browser (with
-  your real key and a real number) — you should get an SMS and a
-  `{"Status":"Success",...}` response:
-  `https://2factor.in/API/V1/YOUR_API_KEY/SMS/9999999999/AUTOGEN`
 
 
 
