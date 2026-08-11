@@ -29,13 +29,12 @@ function defaultData() {
     console.log('----------------------------------------------------------------');
   }
   const adminPasswordHash = bcrypt.hashSync(adminPasswordPlain, 8);
-  const holidaysSeed = defaultHolidays();
   return {
     nextId: {
       users: 2, jobs: 3, applications: 1, employees: 1, leave: 1, attendance: 1,
       payslips: 1, formSixteens: 1, performance: 1,
       tasks: 1, documents: 1, assets: 1, cases: 1, surveys: 1, surveyResponses: 1, kbArticles: 1, workflows: 1,
-      timesheets: 1, holidays: holidaysSeed.length + 1,
+      timesheets: 1, otpRequests: 1,
       employeeCode: 1001,
       employeeDocument: 1
     },
@@ -80,26 +79,9 @@ function defaultData() {
     kbArticles: [],
     workflows: [],
     timesheets: [],
-    holidays: holidaysSeed
+    passwordResets: [],
+    otpRequests: []
   };
-}
-
-// A small starter set of common India public holidays, seeded for the
-// current and next calendar year so the Leave Calendar has something to
-// show out of the box. Admins can add/remove holidays from that page.
-function defaultHolidays() {
-  const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
-  const list = [];
-  let id = 1;
-  years.forEach((y) => {
-    [
-      [`${y}-01-26`, 'Republic Day'],
-      [`${y}-08-15`, 'Independence Day'],
-      [`${y}-10-02`, 'Gandhi Jayanti'],
-      [`${y}-12-25`, 'Christmas']
-    ].forEach(([date, name]) => list.push({ id: id++, date, name }));
-  });
-  return list;
 }
 
 function ensureDB() {
@@ -129,19 +111,12 @@ function migrate(data) {
   ensureArray('kbArticles');
   ensureArray('workflows');
   ensureArray('timesheets');
-  ensureArray('holidays');
+  ensureArray('passwordResets');
+  ensureArray('otpRequests');
   if (!data.nextId) data.nextId = {};
-  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets', 'holidays'].forEach((key) => {
+  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets', 'otpRequests'].forEach((key) => {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
   });
-  // Existing installs won't have any holidays on file yet — seed the same
-  // starter set so the Leave Calendar isn't empty on first upgrade.
-  if (Array.isArray(data.holidays) && data.holidays.length === 0) {
-    const seed = defaultHolidays();
-    data.holidays = seed;
-    data.nextId.holidays = seed.length + 1;
-    changed = true;
-  }
   if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }
   if (typeof data.nextId.employeeDocument !== 'number') { data.nextId.employeeDocument = 1; changed = true; }
 

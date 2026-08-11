@@ -1,7 +1,6 @@
 const express = require('express');
 const { readDB, writeDB, nextId } = require('../db');
 const { requireLogin, requireAdmin } = require('../middleware');
-const { computeMonthLop } = require('../leaveCalc');
 
 const router = express.Router();
 
@@ -35,11 +34,7 @@ function snapshotEmployee(employee) {
 }
 
 // Builds the earnings/deductions breakdown + totals given the raw inputs.
-// lopDays (Loss of Pay days, beyond the 12 Casual + 12 Sick annual leave
-// entitlement) reduce earnings proportionally: each day is worth
-// grossEarnings / stdDays, and public holidays are never part of lopDays
-// in the first place (see leaveCalc.js), so they never affect this.
-function buildAmounts(input, stdDays, lopDays) {
+function buildAmounts(input) {
   const basic = num(input.basic);
   const hra = num(input.hra);
   const flexibleAllowance = num(input.flexibleAllowance);
@@ -51,15 +46,12 @@ function buildAmounts(input, stdDays, lopDays) {
   const otherDeduction = num(input.otherDeduction);
 
   const grossEarnings = basic + hra + flexibleAllowance + personalAllowance + otherAllowance;
-  const perDayEarnings = stdDays > 0 ? grossEarnings / stdDays : 0;
-  const lopDeduction = Math.round(perDayEarnings * lopDays * 100) / 100;
-
-  const grossDeductions = employeePF + provisionTax + otherDeduction + lopDeduction;
+  const grossDeductions = employeePF + provisionTax + otherDeduction;
   const netPay = grossEarnings - grossDeductions;
 
   return {
     basic, hra, flexibleAllowance, personalAllowance, otherAllowance,
-    employeePF, provisionTax, otherDeduction, lopDeduction,
+    employeePF, provisionTax, otherDeduction,
     grossEarnings, grossDeductions, netPay
   };
 }
@@ -79,18 +71,6 @@ router.get('/', requireLogin, (req, res) => {
   res.json({ payslips: payslips.sort((a, b) => (b.month || '').localeCompare(a.month || '')) });
 });
 
-// Admin: preview the auto-calculated LOP days for an employee + month,
-// before generating the payslip (used by the "Generate payslip" form so
-// the admin can see — and override — the suggestion up front).
-// NOTE: registered before GET /:id so 'lop-preview' isn't swallowed as an id.
-router.get('/lop-preview', requireAdmin, (req, res) => {
-  const { employeeId, month } = req.query;
-  if (!employeeId || !month) return res.status(400).json({ error: 'employeeId and month are required' });
-  const db = readDB();
-  const result = computeMonthLop(db, Number(employeeId), month);
-  res.json({ ...result, stdDays: daysInMonth(month) });
-});
-
 // Admin: get a single payslip (used by the print/view page)
 router.get('/:id', requireLogin, (req, res) => {
   const db = readDB();
@@ -105,7 +85,7 @@ router.get('/:id', requireLogin, (req, res) => {
 
 // Admin: create a payslip for an employee
 router.post('/', requireAdmin, (req, res) => {
-  const { employeeId, month, note } = req.body;
+  const { employeeId, month, lopDays, note } = req.body;
   if (!employeeId || !month || req.body.basic == null) {
     return res.status(400).json({ error: 'employeeId, month and basic are required' });
   }
@@ -118,15 +98,10 @@ router.post('/', requireAdmin, (req, res) => {
   }
 
   const stdDays = daysInMonth(month);
-  // If the admin didn't explicitly pass lopDays, auto-calculate it from
-  // approved Casual/Sick leave beyond the 12+12 annual entitlement (public
-  // holidays excluded). An explicit value (including 0) always overrides.
-  const autoLop = computeMonthLop(db, employee.id, month);
-  const lopProvided = req.body.lopDays !== undefined && req.body.lopDays !== null && req.body.lopDays !== '';
-  const lop = Math.min(lopProvided ? num(req.body.lopDays) : autoLop.lopDays, stdDays);
+  const lop = Math.min(num(lopDays), stdDays);
   const workedDays = stdDays - lop;
 
-  const amounts = buildAmounts(req.body, stdDays, lop);
+  const amounts = buildAmounts(req.body);
 
   const payslip = {
     id: nextId(db, 'payslips'),
@@ -135,7 +110,6 @@ router.post('/', requireAdmin, (req, res) => {
     stdDays,
     workedDays,
     lopDays: lop,
-    lopAutoCalculated: !lopProvided,
     ...amounts,
     // legacy fields kept for backward compatibility with older UI/reports
     allowances: amounts.flexibleAllowance,
@@ -169,8 +143,6 @@ router.post('/generate-all', requireAdmin, (req, res) => {
     if (employee.status !== 'active') return;
     if (alreadyGenerated.has(employee.id)) { skipped.push(employee.name); return; }
 
-    const { lopDays } = computeMonthLop(db, employee.id, month);
-
     const amounts = buildAmounts({
       basic: employee.basicSalary,
       hra: employee.hra,
@@ -180,16 +152,15 @@ router.post('/generate-all', requireAdmin, (req, res) => {
       employeePF: employee.employeePF,
       provisionTax: employee.professionalTax,
       otherDeduction: 0
-    }, stdDays, lopDays);
+    });
 
     const payslip = {
       id: nextId(db, 'payslips'),
       ...snapshotEmployee(employee),
       month,
       stdDays,
-      workedDays: stdDays - Math.min(lopDays, stdDays),
-      lopDays: Math.min(lopDays, stdDays),
-      lopAutoCalculated: true,
+      workedDays: stdDays,
+      lopDays: 0,
       ...amounts,
       allowances: amounts.flexibleAllowance,
       deductions: amounts.grossDeductions,

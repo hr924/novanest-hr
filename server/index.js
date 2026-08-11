@@ -21,7 +21,6 @@ const kbRoutes = require('./routes/knowledgebase');
 const workflowRoutes = require('./routes/workflows');
 const timesheetRoutes = require('./routes/timesheets');
 const backupRoutes = require('./routes/backups');
-const holidayRoutes = require('./routes/holidays');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,10 +53,12 @@ app.use('/api/knowledgebase', kbRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/backups', backupRoutes);
-app.use('/api/holidays', holidayRoutes);
 
 // Static frontend
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// dotfiles: 'allow' is required so /.well-known/assetlinks.json (needed for
+// Android TWA/app-link verification) is actually served — Express hides
+// dotfile paths by default.
+app.use(express.static(path.join(__dirname, '..', 'public'), { dotfiles: 'allow' }));
 
 app.listen(PORT, () => {
   console.log(`Novanest HR running at http://localhost:${PORT}`);

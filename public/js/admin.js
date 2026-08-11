@@ -1,14 +1,13 @@
 let CURRENT_USER = null;
 let VIEW = 'overview';
 let CACHE = { jobs: [], applications: [], employees: [], leave: [], attendance: [] };
+let OVERVIEW_CHARTS = {};
 
 async function init() {
   CURRENT_USER = await requireSession(['admin']);
   if (!CURRENT_USER) return;
-  const whoNameEl0 = document.getElementById('whoName');
-  if (whoNameEl0) whoNameEl0.textContent = CURRENT_USER.name;
-  const whoRoleEl0 = document.getElementById('whoRole');
-  if (whoRoleEl0) whoRoleEl0.textContent = 'HR Administrator';
+  document.getElementById('whoName').textContent = CURRENT_USER.name;
+  document.getElementById('whoRole').textContent = 'HR Administrator';
 
   document.querySelectorAll('.sidebar-link').forEach(link => {
     link.addEventListener('click', () => switchView(link.dataset.view));
@@ -18,7 +17,7 @@ async function init() {
     await api('/auth/logout', { method: 'POST' });
     window.location.href = '/login.html';
   });
-  document.getElementById('editAccountLink')?.addEventListener('click', (e) => {
+  document.getElementById('editAccountLink').addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('myAccountForm').reset();
     document.getElementById('myAccountName').value = CURRENT_USER.name;
@@ -35,8 +34,7 @@ async function init() {
         }
       });
       CURRENT_USER = user;
-      const whoNameEl = document.getElementById('whoName');
-      if (whoNameEl) whoNameEl.textContent = user.name;
+      document.getElementById('whoName').textContent = user.name;
       toast('Account updated');
       closeModal('myAccountModal');
     } catch (err) { toast(err.message, true); }
@@ -108,13 +106,12 @@ async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees,
-    leave: renderLeave, leaveCalendar: renderLeaveCalendar, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
+    leave: renderLeave, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets, cases: renderCases,
     surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports,
     backups: renderBackups
   };
   await renderers[view]();
-  restoreFormDraft(view);
 }
 
 function escapeHtml(str) {
@@ -127,9 +124,7 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('show');
 }
 
-/* ---------------- Overview / Dashboard ---------------- */
-let OVERVIEW_CHARTS = { bar: null, donut: null };
-
+/* ---------------- Overview ---------------- */
 async function renderOverview() {
   const [
     { jobs }, { applications }, { employees }, { leave },
@@ -168,9 +163,8 @@ async function renderOverview() {
   const activeEmployees = employees.filter(e => e.status === 'active');
   const presentToday = new Set(attendance.filter(a => a.date === todayStr).map(a => a.employeeId)).size;
   const onLeaveToday = leave.filter(l => l.overallStatus === 'approved' && l.startDate <= todayStr && l.endDate >= todayStr).length;
-  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr').length;
+  const pendingLeave = leave.filter(l => l.overallStatus === 'pending-manager' || l.overallStatus === 'pending-hr' || l.status === 'pending').length;
   const pendingTimesheets = timesheets.filter(t => t.status === 'submitted').length;
-  const pendingApprovals = pendingLeave + pendingTimesheets;
   const openJobs = jobs.filter(j => j.status === 'open').length;
 
   // ---- Module status grid: quick health snapshot per module ----
@@ -192,8 +186,6 @@ async function renderOverview() {
       status: `${activeEmployees.length} active`, tone: 'good' },
     { icon: 'leave', title: 'Leave', view: 'leave',
       status: pendingLeave ? `${pendingLeave} pending` : 'Up to date', tone: pendingLeave ? 'warn' : 'good' },
-    { icon: 'leaveCalendar', title: 'Leave calendar', view: 'leaveCalendar',
-      status: `${onLeaveToday} out today`, tone: 'idle' },
     { icon: 'timesheets', title: 'Timesheets', view: 'timesheets',
       status: pendingTimesheets ? `${pendingTimesheets} pending` : 'Up to date',
       tone: pendingTimesheets ? 'warn' : 'good' },
@@ -227,12 +219,11 @@ async function renderOverview() {
     { icon: 'backups', title: 'Backups', view: 'backups',
       status: recentBackup ? 'Up to date' : 'No backups yet', tone: recentBackup ? 'good' : 'warn' },
   ];
-  const MODULE_TINTS = SIDEBAR_ICON_TINTS; // shared with the navbar so colors always match
   const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>';
   const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16.5v.01"/></svg>';
-  const moduleGridHtml = MODULES.map((m, i) => `
+  const moduleGridHtml = MODULES.map((m) => `
     <div class="module-card" data-view="${m.view}" onclick="switchView('${m.view}'); document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.toggle('active', l.dataset.view==='${m.view}'));" style="cursor:pointer;">
-      <div class="module-icon ${MODULE_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
+      <div class="module-icon ${SIDEBAR_ICON_TINTS[m.icon] || 'm-slate'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDEBAR_ICONS[m.icon] || SIDEBAR_ICON_DEFAULT}</svg></div>
       <div>
         <div class="module-title">${escapeHtml(m.title)}</div>
         <div class="module-status ${m.tone}">${escapeHtml(m.status)}</div>
@@ -623,7 +614,6 @@ async function openEmpModal(id) {
   document.getElementById('empModalTitle').textContent = 'Add employee';
   document.getElementById('loginPasswordWrap').style.display = 'none';
   document.getElementById('loginFieldsWrap').style.display = 'block';
-  document.getElementById('existingLoginWrap').style.display = 'none';
   document.getElementById('empJoinDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('empDeptOther').style.display = 'none';
   document.getElementById('empPositionOther').style.display = 'none';
@@ -685,12 +675,8 @@ async function openEmpModal(id) {
     document.getElementById('empBankAccount').value = emp.bankAccountNumber || '';
     document.getElementById('empBankIfsc').value = emp.bankIFSC || '';
     document.getElementById('empModalTitle').textContent = 'Edit employee — ' + (emp.employeeCode || '');
-    // Login accounts for existing employees are managed via the Reset password
-    // button below, not the create-login checkbox (that's for employees who
-    // don't have a login yet).
-    document.getElementById('loginFieldsWrap').style.display = emp.hasLogin ? 'none' : 'block';
-    document.getElementById('existingLoginWrap').style.display = emp.hasLogin ? 'block' : 'none';
-    document.getElementById('existingLoginResetBtn').onclick = () => resetLoginPasswordFor(emp.id);
+    // Login accounts for existing employees are managed from the roster table, not this form.
+    document.getElementById('loginFieldsWrap').style.display = 'none';
 
     if (emp.profilePhoto) {
       document.getElementById('empPhotoPreview').src = emp.profilePhoto;
@@ -874,16 +860,6 @@ async function submitLoginPassword(e) {
   } catch (err) { toast(err.message, true); }
 }
 
-async function resetLoginPasswordFor(id) {
-  const emp = CACHE.employees.find(e => e.id === id);
-  if (!confirm(`Reset the login password for ${emp ? emp.name : 'this employee'}? Their old password will stop working immediately.`)) return;
-  try {
-    const { credentials } = await api(`/employees/${id}/reset-password`, { method: 'POST', body: {} });
-    showCredentials(credentials, emp);
-    renderEmployees();
-  } catch (err) { toast(err.message, true); }
-}
-
 function showCredentials(credentials, employee) {
   document.getElementById('credsEmployeeId').textContent = (employee && employee.employeeCode) || '—';
   document.getElementById('credsEmail').textContent = credentials.email;
@@ -940,235 +916,6 @@ async function setLeaveStatus(id, status) {
   } catch (err) { toast(err.message, true); }
 }
 
-/* ---------------- Leave Calendar ---------------- */
-const LC_STATE = { year: new Date().getFullYear(), month: new Date().getMonth() + 1, category: 'all', txnType: 'all', selectedDate: null };
-let LC_DATA = { employees: [], leave: [], holidays: [] };
-
-function lcOverlapsDate(req, dateStr) {
-  return req.startDate <= dateStr && req.endDate >= dateStr;
-}
-
-function lcFilteredLeave() {
-  return LC_DATA.leave.filter(l => {
-    if (LC_STATE.category !== 'all' && l.type !== LC_STATE.category) return false;
-    if (LC_STATE.txnType === 'approved' && l.overallStatus !== 'approved') return false;
-    if (LC_STATE.txnType === 'pending' && !['pending-manager', 'pending-hr'].includes(l.overallStatus)) return false;
-    if (LC_STATE.txnType === 'rejected' && l.overallStatus !== 'rejected') return false;
-    return true;
-  });
-}
-
-async function renderLeaveCalendar() {
-  const [{ employees }, { leave }, { holidays }] = await Promise.all([
-    api('/employees'), api('/leave'), api(`/holidays?year=${LC_STATE.year}`)
-  ]);
-  LC_DATA = { employees, leave, holidays };
-  lcRenderShell();
-}
-
-function lcRenderShell() {
-  const main = document.getElementById('main');
-  const monthLabel = new Date(LC_STATE.year, LC_STATE.month - 1, 1).toLocaleDateString(undefined, { month: 'long' });
-  const yearOptions = [LC_STATE.year - 1, LC_STATE.year, LC_STATE.year + 1];
-  const leaveTypeOptions = ['all', 'Casual', 'Sick', 'Personal', 'Bereavement', 'Other'];
-
-  main.innerHTML = `
-    <div class="main-head">
-      <div><h1>Leave calendar</h1><div class="subtitle">See who's on leave, day by day, and export the details.</div></div>
-      <select id="lcYear" style="width:auto; margin:0;" onchange="lcChangeYear(this.value)">
-        ${yearOptions.map(y => `<option value="${y}" ${y === LC_STATE.year ? 'selected' : ''}>${y}</option>`).join('')}
-      </select>
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-body" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <button class="btn btn-ghost btn-sm" onclick="lcChangeMonth(-1)">◀</button>
-          <strong style="min-width:130px; text-align:center; font-family:var(--font-display); font-size:16px;">${monthLabel} ${LC_STATE.year}</strong>
-          <button class="btn btn-ghost btn-sm" onclick="lcChangeMonth(1)">▶</button>
-        </div>
-        <div style="flex:1; min-width:12px;"></div>
-        <div>
-          <label style="margin:0 0 3px;">Category</label>
-          <select id="lcCategory" style="margin:0; width:auto;" onchange="lcSetFilter('category', this.value)">
-            ${leaveTypeOptions.map(t => `<option value="${t}" ${t === LC_STATE.category ? 'selected' : ''}>${t === 'all' ? 'All types' : escapeHtml(t)}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label style="margin:0 0 3px;">Transaction type</label>
-          <select id="lcTxnType" style="margin:0; width:auto;" onchange="lcSetFilter('txnType', this.value)">
-            <option value="all" ${LC_STATE.txnType === 'all' ? 'selected' : ''}>All statuses</option>
-            <option value="approved" ${LC_STATE.txnType === 'approved' ? 'selected' : ''}>Approved</option>
-            <option value="pending" ${LC_STATE.txnType === 'pending' ? 'selected' : ''}>Pending</option>
-            <option value="rejected" ${LC_STATE.txnType === 'rejected' ? 'selected' : ''}>Rejected</option>
-          </select>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="lcExportCsv()">Export CSV</button>
-      </div>
-    </div>
-
-    <div id="lcCalendarWrap"></div>
-    <div id="lcDayDetail" class="mt-24"></div>
-
-    <div class="filetab" style="margin-top:28px;">Public holidays — ${LC_STATE.year}</div>
-    <div class="panel" style="border-top-left-radius:0;">
-      <div class="panel-body">
-        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px;">
-          <div style="margin:0;"><label for="lcHolidayDate">Date</label><input id="lcHolidayDate" type="date" style="margin:0;"></div>
-          <div style="margin:0; flex:1; min-width:160px;"><label for="lcHolidayName">Name</label><input id="lcHolidayName" placeholder="e.g. Diwali" style="margin:0;"></div>
-          <button class="btn btn-primary btn-sm" onclick="lcAddHoliday()">+ Add holiday</button>
-        </div>
-        ${LC_DATA.holidays.length === 0 ? emptyState('No holidays recorded for this year yet') : renderTable(
-          ['Date', 'Name', ''],
-          LC_DATA.holidays.map(h => [fmtDate(h.date), escapeHtml(h.name), `<button class="btn btn-danger btn-sm" onclick="lcDeleteHoliday(${h.id})">Remove</button>`])
-        )}
-      </div>
-    </div>
-  `;
-  lcRenderCalendarGrid();
-  lcRenderDayDetail();
-}
-
-function lcRenderCalendarGrid() {
-  const holidaySet = new Set(LC_DATA.holidays.map(h => h.date));
-  const filtered = lcFilteredLeave();
-  const year = LC_STATE.year, month = LC_STATE.month;
-  const firstOfMonth = new Date(year, month - 1, 1);
-  const startOffset = firstOfMonth.getDay(); // 0 = Sun
-  const daysInThisMonth = new Date(year, month, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  const cells = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInThisMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const cellHtml = cells.map((d) => {
-    if (!d) return `<div style="min-height:74px; border:1px solid var(--line); border-radius:8px; background:var(--paper);"></div>`;
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isHoliday = holidaySet.has(dateStr);
-    const onLeave = filtered.filter(l => lcOverlapsDate(l, dateStr));
-    const count = new Set(onLeave.map(l => l.employeeId)).size;
-    const isToday = dateStr === todayStr;
-    const isSelected = dateStr === LC_STATE.selectedDate;
-    return `
-      <div onclick="lcSelectDay('${dateStr}')" style="min-height:74px; border:1px solid ${isSelected ? 'var(--purple)' : 'var(--line)'}; border-radius:8px; padding:7px; cursor:pointer; background:${isSelected ? 'var(--tab-bg)' : '#fff'}; transition:background 0.1s;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12.5px; font-weight:${isToday ? 700 : 500}; color:${isToday ? 'var(--purple)' : 'var(--ink)'};">${d}</span>
-          ${isHoliday ? `<span style="font-size:9px; background:#FFF0E6; color:#FF8A4C; border-radius:5px; padding:1px 5px; font-weight:700;">HOL</span>` : ''}
-        </div>
-        ${count > 0 ? `<div style="margin-top:8px;"><span style="display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 5px; border-radius:100px; background:var(--tab-bg); color:var(--purple-dark); font-size:11.5px; font-weight:700;">${count}</span></div>` : ''}
-      </div>`;
-  }).join('');
-
-  document.getElementById('lcCalendarWrap').innerHTML = `
-    <div class="chart-card">
-      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; margin-bottom:8px;">
-        ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div style="text-align:center; font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${d}</div>`).join('')}
-      </div>
-      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px;">${cellHtml}</div>
-      <div style="margin-top:12px; font-size:11.5px; color:var(--ink-soft);">The number in each day is how many employees are on leave that day. <strong>HOL</strong> marks a public holiday — leave on that day isn't counted against anyone's balance.</div>
-    </div>
-  `;
-}
-
-function lcRenderDayDetail() {
-  const holder = document.getElementById('lcDayDetail');
-  if (!LC_STATE.selectedDate) { holder.innerHTML = ''; return; }
-  const dateStr = LC_STATE.selectedDate;
-  const holiday = LC_DATA.holidays.find(h => h.date === dateStr);
-  const onLeave = lcFilteredLeave().filter(l => lcOverlapsDate(l, dateStr));
-
-  holder.innerHTML = `
-    <div class="filetab">${fmtDate(dateStr)}${holiday ? ` — ${escapeHtml(holiday.name)} (public holiday)` : ''}</div>
-    <div class="panel" style="border-top-left-radius:0;">
-      <div class="panel-body">
-        ${onLeave.length === 0 ? emptyState('No employees on leave this day (with the current filters)') : renderTable(
-          ['Employee', 'Type', 'Dates', 'Status'],
-          onLeave.map(l => [escapeHtml(l.employeeName), escapeHtml(l.type), `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`, pill(l.overallStatus)])
-        )}
-      </div>
-    </div>
-  `;
-}
-
-function lcSelectDay(dateStr) {
-  LC_STATE.selectedDate = LC_STATE.selectedDate === dateStr ? null : dateStr;
-  lcRenderCalendarGrid();
-  lcRenderDayDetail();
-}
-
-function lcChangeMonth(delta) {
-  let m = LC_STATE.month + delta, y = LC_STATE.year;
-  if (m < 1) { m = 12; y -= 1; }
-  if (m > 12) { m = 1; y += 1; }
-  LC_STATE.month = m;
-  LC_STATE.selectedDate = null;
-  if (y !== LC_STATE.year) { LC_STATE.year = y; renderLeaveCalendar(); }
-  else { lcRenderCalendarGrid(); lcRenderDayDetail(); }
-}
-
-function lcChangeYear(year) {
-  LC_STATE.year = Number(year);
-  LC_STATE.selectedDate = null;
-  renderLeaveCalendar();
-}
-
-function lcSetFilter(key, value) {
-  LC_STATE[key] = value;
-  lcRenderCalendarGrid();
-  lcRenderDayDetail();
-}
-
-async function lcAddHoliday() {
-  const date = document.getElementById('lcHolidayDate').value;
-  const name = document.getElementById('lcHolidayName').value.trim();
-  if (!date || !name) { toast('Enter both a date and a name', true); return; }
-  try {
-    await api('/holidays', { method: 'POST', body: { date, name } });
-    toast('Holiday added');
-    renderLeaveCalendar();
-  } catch (err) { toast(err.message, true); }
-}
-
-async function lcDeleteHoliday(id) {
-  if (!confirm('Remove this holiday?')) return;
-  try {
-    await api(`/holidays/${id}`, { method: 'DELETE' });
-    toast('Holiday removed');
-    renderLeaveCalendar();
-  } catch (err) { toast(err.message, true); }
-}
-
-function lcExportCsv() {
-  const year = LC_STATE.year, month = LC_STATE.month;
-  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
-  const holidaySet = new Set(LC_DATA.holidays.map(h => h.date));
-  const rows = [['Employee', 'Type', 'Date', 'Status', 'Public holiday']];
-  lcFilteredLeave().forEach((l) => {
-    const start = l.startDate < `${monthPrefix}-01` ? `${monthPrefix}-01` : l.startDate;
-    const end = l.endDate > `${monthPrefix}-31` ? `${monthPrefix}-31` : l.endDate;
-    let cur = new Date(start + 'T00:00:00');
-    const endD = new Date(end + 'T00:00:00');
-    if (isNaN(cur) || isNaN(endD)) return;
-    while (cur <= endD) {
-      const ds = cur.toISOString().slice(0, 10);
-      if (ds.startsWith(monthPrefix)) {
-        rows.push([l.employeeName, l.type, ds, l.overallStatus, holidaySet.has(ds) ? 'Yes' : 'No']);
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-  });
-  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `leave-calendar-${monthPrefix}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /* ---------------- Timesheets (admin/HR view) ---------------- */
 let TS_ADMIN_CACHE = [];
 
@@ -1177,16 +924,24 @@ async function renderTimesheetsAdmin() {
   TS_ADMIN_CACHE = timesheets;
   document.getElementById('main').innerHTML = `
     <h1>Timesheets</h1>
-    <div class="subtitle">Manager-approved weekly timesheets across the company. Approval happens in the employee's manager portal — this is a read-only record of timesheets a manager has already signed off on.</div>
+    <div class="subtitle">Weekly timesheets across the company, and their manager-approval status.</div>
     <div class="panel">
-      <div class="panel-header"><h2>Approved timesheets</h2></div>
+      <div class="panel-header"><h2>All timesheets</h2></div>
       <div class="panel-body">
-        ${timesheets.length === 0 ? emptyState('No manager-approved timesheets yet') : renderTable(
-          ['Employee', 'Week starting', 'Working hours', 'Leave/Holiday', 'Status', ''],
+        ${timesheets.length === 0 ? emptyState('No timesheets submitted yet') : renderTable(
+          ['Employee', 'Week starting', 'Total hours', 'Status', 'Manager decision', ''],
           timesheets.map(t => [
-            escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours, t.totalLeaveHours || 0,
+            escapeHtml(t.employeeName), fmtDate(t.weekStarting), t.totalHours,
             pill(t.status),
-            `<button class="btn btn-ghost btn-sm" onclick="viewAdminTimesheet(${t.id})">View</button>`
+            t.status === 'draft' ? '<span class="muted">—</span>'
+              : `${pill(t.managerStatus)}${t.managerComment ? `<br><span class="muted" style="font-size:11px;">${escapeHtml(t.managerComment)}</span>` : ''}`,
+            `<span class="section-actions">
+              <button class="btn btn-ghost btn-sm" onclick="viewAdminTimesheet(${t.id})">View</button>
+              ${t.status === 'submitted' ? `
+                <button class="btn btn-primary btn-sm" onclick="adminDecideTimesheet(${t.id}, 'approved')">Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="adminDecideTimesheetPrompt(${t.id})">Decline</button>
+              ` : ''}
+            </span>`
           ])
         )}
       </div>
@@ -1197,8 +952,21 @@ async function renderTimesheetsAdmin() {
 function viewAdminTimesheet(id) {
   const ts = TS_ADMIN_CACHE.find(t => t.id === id);
   if (!ts) return;
-  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} — Work ${e.workHours || 0}h / Leave ${e.leaveHours || 0}h`).join('\n');
-  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nWorking hours: ${ts.totalHours}h  |  Leave/Holiday: ${ts.totalLeaveHours || 0}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+  const rows = (ts.entries || []).map(e => `${fmtDate(e.date)}: ${e.project || '—'} / ${e.task || '—'} — ${e.hours}h`).join('\n');
+  alert(`${ts.employeeName} — week of ${fmtDate(ts.weekStarting)}\n\n${rows || 'No entries'}\n\nTotal: ${ts.totalHours}h${ts.notes ? `\n\nNotes: ${ts.notes}` : ''}`);
+}
+
+async function adminDecideTimesheet(id, status, comment) {
+  try {
+    await api(`/timesheets/${id}/manager-status`, { method: 'PUT', body: { status, comment: comment || '' } });
+    toast('Decision recorded');
+    renderTimesheetsAdmin();
+  } catch (err) { toast(err.message, true); }
+}
+
+function adminDecideTimesheetPrompt(id) {
+  const comment = prompt('Reason for declining this timesheet (optional):') || '';
+  adminDecideTimesheet(id, 'rejected', comment);
 }
 
 /* ---------------- Attendance ---------------- */
@@ -1274,14 +1042,13 @@ async function renderPayslips() {
 async function openPayslipModal() {
   document.getElementById('payslipForm').reset();
   await populateEmployeeSelect('payslipEmployee');
-  await autoFillPayslipAmounts();
+  autoFillPayslipAmounts();
   recalcPayslipTotals();
   document.getElementById('payslipModal').classList.add('show');
 }
 
-async function autoFillPayslipAmounts() {
+function autoFillPayslipAmounts() {
   const empId = Number(document.getElementById('payslipEmployee').value);
-  const month = document.getElementById('payslipMonth').value;
   const emp = CACHE.employees.find(e => e.id === empId);
   if (!emp) return;
   document.getElementById('payslipBasic').value = emp.basicSalary || 0;
@@ -1293,32 +1060,15 @@ async function autoFillPayslipAmounts() {
   document.getElementById('payslipProvisionTax').value = emp.professionalTax || 0;
   document.getElementById('payslipOtherDeduction').value = 0;
   document.getElementById('payslipLopDays').value = 0;
-  document.getElementById('payslipLeaveHint').style.display = 'none';
-
-  if (empId && month) {
-    try {
-      const preview = await api(`/payslips/lop-preview?employeeId=${empId}&month=${month}`);
-      document.getElementById('payslipLopDays').value = preview.lopDays;
-      const hint = document.getElementById('payslipLeaveHint');
-      hint.style.display = 'block';
-      hint.textContent = preview.lopDays > 0
-        ? `This employee has taken ${preview.casualUsedYtd} Casual + ${preview.sickUsedYtd} Sick day(s) so far this year — ${preview.lopDays} day(s) this month are beyond the 12+12 allowance and pre-filled as LOP.`
-        : `Year to date: ${preview.casualUsedYtd} Casual + ${preview.sickUsedYtd} Sick day(s) used, still within the 12+12 annual allowance — no LOP suggested.`;
-    } catch (err) { /* auto-suggestion is best-effort; admin can still fill LOP manually */ }
-  }
   recalcPayslipTotals();
 }
 
 function recalcPayslipTotals() {
   const val = (id) => Number(document.getElementById(id).value) || 0;
-  const month = document.getElementById('payslipMonth').value;
-  const stdDays = month ? new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() : 30;
-  const lopDays = Math.min(val('payslipLopDays'), stdDays);
   const gross = val('payslipBasic') + val('payslipHra') + val('payslipFlexAllowance') + val('payslipPersonalAllowance') + val('payslipOtherAllowance');
-  const lopDeduction = Math.round((gross / stdDays) * lopDays * 100) / 100;
-  const deductions = val('payslipEmployeePF') + val('payslipProvisionTax') + val('payslipOtherDeduction') + lopDeduction;
+  const deductions = val('payslipEmployeePF') + val('payslipProvisionTax') + val('payslipOtherDeduction');
   document.getElementById('payslipGrossEarnings').textContent = fmtMoney(gross);
-  document.getElementById('payslipGrossDeductions').textContent = fmtMoney(deductions) + (lopDeduction > 0 ? ` (incl. ${fmtMoney(lopDeduction)} LOP)` : '');
+  document.getElementById('payslipGrossDeductions').textContent = fmtMoney(deductions);
   document.getElementById('payslipNetPay').textContent = fmtMoney(gross - deductions);
 }
 

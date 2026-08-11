@@ -1,7 +1,6 @@
 const express = require('express');
 const { readDB, writeDB, nextId } = require('../db');
 const { requireLogin, requireAdmin, requireManagerOrAdmin } = require('../middleware');
-const { computeYearUsage } = require('../leaveCalc');
 
 const router = express.Router();
 
@@ -108,29 +107,6 @@ router.put('/:id/status', requireAdmin, (req, res) => {
   request.status = status; // keep legacy field roughly in sync
   writeDB(db);
   res.json({ leave: withOverallStatus(request) });
-});
-
-// Logged-in: leave balance summary (Casual/Sick used vs. the 12+12 annual
-// entitlement) for the current user, or — for admin/manager — for a given
-// employeeId. Used by the Leave Calendar and by the employee's own Leave page.
-router.get('/balance', requireLogin, (req, res) => {
-  const db = readDB();
-  const { user } = req.session;
-  let employeeId = user.employeeId;
-
-  if (req.query.employeeId && (user.role === 'admin' || user.role === 'manager')) {
-    employeeId = Number(req.query.employeeId);
-    if (user.role === 'manager') {
-      const employee = db.employees.find(e => e.id === employeeId);
-      if (!employee || employee.managerId !== user.employeeId) {
-        return res.status(403).json({ error: 'You are not the manager for this employee' });
-      }
-    }
-  }
-  if (!employeeId) return res.status(400).json({ error: 'No employee profile to look up' });
-
-  const year = Number(req.query.year) || new Date().getFullYear();
-  res.json({ balance: computeYearUsage(db, employeeId, year) });
 });
 
 module.exports = router;
