@@ -3,10 +3,8 @@
 // Indian mobile numbers). Uses Node's built-in https module, so no extra
 // npm package is needed.
 //
-// Unlike 2Factor (which generates and verifies the OTP on their own end),
-// MSG91's Flow API just sends whatever text/variables you give it — so the
-// OTP itself is generated, hashed, and verified by this app (see
-// server/routes/auth.js), and MSG91's only job is delivering the SMS.
+// This app generates, hashes, and verifies the OTP itself (see
+// server/routes/auth.js) — MSG91's only job is delivering the SMS text.
 //
 // Configure via environment variables:
 //   MSG91_AUTH_KEY     your MSG91 auth key

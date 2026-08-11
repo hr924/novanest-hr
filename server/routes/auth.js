@@ -117,8 +117,8 @@ router.post('/forgot-password', async (req, res) => {
 // with the same generic message whether or not that number is on file, so
 // this can't be used to discover whose numbers are registered. Also rate
 // limited per mobile number so it can't be used to spam someone with SMS.
-// Unlike 2Factor, MSG91's Flow API only delivers the SMS — the OTP itself
-// is generated, hashed, and verified here.
+// The OTP itself is generated, hashed, and verified here — MSG91's Flow
+// API is only used to deliver the SMS text.
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute between requests
 const OTP_MAX_ATTEMPTS = 5;
