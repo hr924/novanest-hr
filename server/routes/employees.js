@@ -28,7 +28,7 @@ const EXTENDED_PROFILE_FIELDS = [
   'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
   'aadhaarNumber', 'panNumber', 'passportNumber',
   'bankAccountNumber', 'bankIFSC', 'bankName', 'uan',
-  'location', 'pfNumber'
+  'location', 'pfNumber', 'profilePhoto'
 ];
 
 const PAYROLL_NUMERIC_FIELDS = ['basicSalary', 'allowances', 'deductions', 'annualCTC', 'monthlyCTC', 'hra', 'employerPF', 'employeePF', 'professionalTax'];
