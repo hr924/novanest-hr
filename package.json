@@ -11,8 +11,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "nodemailer": "^6.9.14"
+    "cors": "^2.8.5"
   },
   "engines": {
     "node": ">=16.0.0"

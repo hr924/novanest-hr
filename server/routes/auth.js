@@ -3,7 +3,6 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { readDB, writeDB, nextId } = require('../db');
 const { requireLogin } = require('../middleware');
-const { sendMail } = require('../mailer');
 const sms = require('../sms');
 
 const router = express.Router();
@@ -61,57 +60,6 @@ router.put('/me', requireLogin, (req, res) => {
 });
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-// Anyone: request a password reset link by email. Always responds with the
-// same generic message whether or not that email exists, so this endpoint
-// can't be used to discover which emails have accounts.
-router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  const generic = { message: 'If an account exists for that email, a password reset link has been sent.' };
-  if (!email || !String(email).trim()) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
-
-  const db = readDB();
-  const user = db.users.find(u => u.email.toLowerCase() === String(email).trim().toLowerCase());
-
-  if (user) {
-    // Clear out any previous unused tokens for this user, then issue a
-    // fresh one — only the most recent reset link is ever valid.
-    db.passwordResets = db.passwordResets.filter(r => r.userId !== user.id);
-    const token = crypto.randomBytes(32).toString('hex');
-    db.passwordResets.push({
-      token,
-      userId: user.id,
-      email: user.email,
-      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString(),
-      used: false,
-      createdAt: new Date().toISOString()
-    });
-    writeDB(db);
-
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password.html?token=${token}`;
-    try {
-      await sendMail({
-        to: user.email,
-        subject: 'Reset your Novanest HR password',
-        html: `
-          <p>Hi ${user.name || ''},</p>
-          <p>Someone requested a password reset for your Novanest HR account. Click below to choose a new password. This link expires in 1 hour and can only be used once.</p>
-          <p><a href="${resetUrl}" style="display:inline-block; padding:10px 18px; background:#03A9E7; color:#fff; text-decoration:none; border-radius:6px;">Reset password</a></p>
-          <p>Or copy this link: ${resetUrl}</p>
-          <p>If you didn't request this, you can safely ignore this email — your password won't change.</p>
-        `,
-        text: `Reset your Novanest HR password: ${resetUrl} (expires in 1 hour, one-time use)`
-      });
-    } catch (err) {
-      console.error('[auth] Failed to send password reset email:', err.message);
-      // Don't leak the failure to the client — still return the generic message.
-    }
-  }
-
-  res.json(generic);
-});
 
 // Anyone: request a password reset OTP by mobile number. Always responds
 // with the same generic message whether or not that number is on file, so
