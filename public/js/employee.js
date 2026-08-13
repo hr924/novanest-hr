@@ -1,4 +1,6 @@
 let CURRENT_USER = null;
+let VIEW = 'dashboard';
+const HOME_VIEW = 'dashboard';
 
 async function init() {
   CURRENT_USER = await requireSession(['employee', 'manager', 'admin']);
@@ -43,18 +45,11 @@ async function init() {
   document.getElementById('leaveForm').addEventListener('submit', submitLeave);
   document.getElementById('caseForm').addEventListener('submit', submitCase);
 
+  initBackButtonObserver();
   await switchView('dashboard');
 }
 
-let VIEW = 'dashboard';
-let VIEW_HISTORY = [];
-
-async function switchView(view, opts) {
-  opts = opts || {};
-  if (!opts.isBack && VIEW !== view) {
-    VIEW_HISTORY.push(VIEW);
-  }
-  VIEW = view;
+async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     dashboard: renderDashboard,
@@ -65,29 +60,29 @@ async function switchView(view, opts) {
     cases: renderCases, surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows,
     teamApprovals: renderTeamApprovals
   };
+  VIEW = view;
   await renderers[view]();
-  updateBackButton();
+  ensureBackButton();
 }
 
-function goBack() {
-  const prev = VIEW_HISTORY.pop();
-  switchView(prev || 'dashboard', { isBack: true });
+/* ---------------- Back button (shown on every screen except the dashboard) ----------------
+   A MutationObserver keeps this in sync automatically: any time a render function
+   rewrites #main (whether via switchView or a direct re-render after save/delete),
+   the observer re-adds the button if it's missing, so it's always present on
+   every screen without needing to touch each individual render function. */
+function ensureBackButton() {
+  const main = document.getElementById('main');
+  if (!main || VIEW === HOME_VIEW) return;
+  if (main.firstElementChild && main.firstElementChild.classList.contains('back-btn-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'back-btn-bar';
+  bar.innerHTML = `<button type="button" class="btn btn-ghost btn-sm back-btn" onclick="switchView('${HOME_VIEW}')">&larr; Back</button>`;
+  main.insertBefore(bar, main.firstChild);
 }
-
-function updateBackButton() {
-  const old = document.getElementById('pageBackButton');
-  if (old) old.remove();
-
-  if (VIEW === 'dashboard' && VIEW_HISTORY.length === 0) return;
-
+function initBackButtonObserver() {
   const main = document.getElementById('main');
   if (!main) return;
-  const btn = document.createElement('button');
-  btn.id = 'pageBackButton';
-  btn.className = 'page-back-btn';
-  btn.onclick = goBack;
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back`;
-  main.appendChild(btn);
+  new MutationObserver(ensureBackButton).observe(main, { childList: true });
 }
 
 function escapeHtml(str) {
@@ -619,10 +614,51 @@ async function updateTaskStatus(id, status) {
 
 /* ---------------- Documents (read-only) ---------------- */
 async function renderDocuments() {
-  const { documents } = await api('/documents');
+  const [{ documents }, sharedDrive, me] = await Promise.all([
+    api('/documents'),
+    api('/documents/shared-drive').catch(() => ({ link: '', label: '' })),
+    api('/employees/me')
+  ]);
+  const myDocs = (me.employee.documents || []).filter(d => d.uploadedBy === 'employee');
   document.getElementById('main').innerHTML = `
     <h1>Documents</h1>
     <div class="subtitle">Company documents and policies.</div>
+    ${sharedDrive.link ? `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-body" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div>
+          <strong>${escapeHtml(sharedDrive.label || 'Company shared drive')}</strong>
+          <div class="muted" style="font-size:12.5px;">Upload and access shared company files here.</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="${escapeHtml(sharedDrive.link)}" target="_blank" rel="noopener">Open shared drive ↗</a>
+      </div>
+    </div>` : ''}
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header"><h2>Share a document with HR</h2></div>
+      <div class="panel-body">
+        <div class="muted" style="margin-bottom:10px;">Upload onboarding paperwork, ID proof, certificates, etc. It goes straight to your employee record for HR/admin to review.</div>
+        <form id="myDocumentForm" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px;">
+          <div style="flex:2; min-width:220px;">
+            <label for="myDocName">Document name</label>
+            <input id="myDocName" placeholder="e.g. Aadhaar Card, Degree Certificate" required>
+          </div>
+          <div style="flex:2; min-width:220px;">
+            <label for="myDocFile">File</label>
+            <input id="myDocFile" type="file" required>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">Share with HR</button>
+        </form>
+        ${myDocs.length === 0 ? emptyState('You haven\'t shared any documents yet') : myDocs.map(d => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:13px; gap:8px; flex-wrap:wrap;">
+            <span>
+              <a href="${d.dataUrl}" download="${escapeHtml(d.name)}">${escapeHtml(d.name)}</a>
+              ${d.status === 'pending' ? ' <span class="pill pill-pending">pending review</span>' : ' <span class="pill pill-approved">reviewed</span>'}
+            </span>
+            <button type="button" class="btn btn-danger btn-sm" onclick="deleteMyDocument(${d.id})">Remove</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
     <div class="panel"><div class="panel-body">
       ${documents.length === 0 ? emptyState('No documents published yet') : renderTable(
         ['Title', 'Category', 'Added'],
@@ -633,6 +669,38 @@ async function renderDocuments() {
       )}
     </div></div>
   `;
+  document.getElementById('myDocumentForm').addEventListener('submit', submitMyDocument);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function submitMyDocument(e) {
+  e.preventDefault();
+  const file = document.getElementById('myDocFile').files[0];
+  const name = document.getElementById('myDocName').value.trim();
+  if (!file || !name) return;
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    await api('/employees/me/documents', { method: 'POST', body: { name, dataUrl } });
+    toast('Document shared with HR');
+    renderDocuments();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteMyDocument(docId) {
+  if (!confirm('Remove this document?')) return;
+  try {
+    await api(`/employees/me/documents/${docId}`, { method: 'DELETE' });
+    toast('Document removed');
+    renderDocuments();
+  } catch (err) { toast(err.message, true); }
 }
 
 /* ---------------- Assets (read-only) ---------------- */

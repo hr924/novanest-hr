@@ -98,16 +98,11 @@ async function init() {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 20);
   });
 
+  initBackButtonObserver();
   await switchView('overview');
 }
 
-let VIEW_HISTORY = [];
-
-async function switchView(view, opts) {
-  opts = opts || {};
-  if (!opts.isBack && VIEW !== view) {
-    VIEW_HISTORY.push(VIEW);
-  }
+async function switchView(view) {
   VIEW = view;
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
@@ -118,30 +113,28 @@ async function switchView(view, opts) {
     backups: renderBackups
   };
   await renderers[view]();
-  updateBackButton();
+  ensureBackButton();
 }
 
-function goBack() {
-  const prev = VIEW_HISTORY.pop();
-  switchView(prev || 'overview', { isBack: true });
+/* ---------------- Back button (shown on every screen except Overview) ----------------
+   A MutationObserver keeps this in sync automatically: any time a render function
+   rewrites #main (whether via switchView or a direct re-render after save/delete),
+   the observer re-adds the button if it's missing, so it's always present on
+   every screen without needing to touch each individual render function. */
+const HOME_VIEW = 'overview';
+function ensureBackButton() {
+  const main = document.getElementById('main');
+  if (!main || VIEW === HOME_VIEW) return;
+  if (main.firstElementChild && main.firstElementChild.classList.contains('back-btn-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'back-btn-bar';
+  bar.innerHTML = `<button type="button" class="btn btn-ghost btn-sm back-btn" onclick="switchView('${HOME_VIEW}')">&larr; Back</button>`;
+  main.insertBefore(bar, main.firstChild);
 }
-
-function updateBackButton() {
-  const old = document.getElementById('pageBackButton');
-  if (old) old.remove();
-
-  // No point showing Back while already on the dashboard with nowhere to
-  // go back to — every other page always gets one.
-  if (VIEW === 'overview' && VIEW_HISTORY.length === 0) return;
-
+function initBackButtonObserver() {
   const main = document.getElementById('main');
   if (!main) return;
-  const btn = document.createElement('button');
-  btn.id = 'pageBackButton';
-  btn.className = 'page-back-btn';
-  btn.onclick = goBack;
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back`;
-  main.appendChild(btn);
+  new MutationObserver(ensureBackButton).observe(main, { childList: true });
 }
 
 function escapeHtml(str) {
@@ -727,11 +720,31 @@ function renderExistingDocs(emp) {
   const wrap = document.getElementById('empExistingDocs');
   if (docs.length === 0) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = docs.map(d => `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:13px;">
-      <a href="${d.dataUrl}" download="${escapeHtml(d.name)}">${escapeHtml(d.name)}</a>
-      <button type="button" class="btn btn-danger btn-sm" onclick="deleteEmployeeDocument(${emp.id}, ${d.id})">Remove</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:13px; gap:8px; flex-wrap:wrap;">
+      <span>
+        <a href="${d.dataUrl}" download="${escapeHtml(d.name)}">${escapeHtml(d.name)}</a>
+        ${d.uploadedBy === 'employee' ? (d.status === 'pending'
+          ? ' <span class="pill pill-pending">shared by employee · pending review</span>'
+          : ' <span class="pill pill-approved">shared by employee · reviewed</span>') : ''}
+      </span>
+      <span style="display:flex; gap:6px;">
+        ${d.uploadedBy === 'employee' && d.status === 'pending' ? `<button type="button" class="btn btn-ghost btn-sm" onclick="markEmployeeDocReviewed(${emp.id}, ${d.id})">Mark reviewed</button>` : ''}
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteEmployeeDocument(${emp.id}, ${d.id})">Remove</button>
+      </span>
     </div>
   `).join('');
+}
+
+async function markEmployeeDocReviewed(empId, docId) {
+  try {
+    await api(`/employees/${empId}/documents/${docId}`, { method: 'PUT', body: { status: 'reviewed' } });
+    const { employees } = await api('/employees');
+    CACHE.employees = employees;
+    const emp = employees.find(e => e.id === empId);
+    if (emp) renderExistingDocs(emp);
+    toast('Marked as reviewed');
+    if (VIEW === 'documents') renderDocuments();
+  } catch (err) { toast(err.message, true); }
 }
 
 async function deleteEmployeeDocument(empId, docId) {
@@ -740,8 +753,10 @@ async function deleteEmployeeDocument(empId, docId) {
     await api(`/employees/${empId}/documents/${docId}`, { method: 'DELETE' });
     const { employees } = await api('/employees');
     CACHE.employees = employees;
-    renderExistingDocs(employees.find(e => e.id === empId));
+    const emp = employees.find(e => e.id === empId);
+    if (emp) renderExistingDocs(emp);
     toast('Document removed');
+    if (VIEW === 'documents') renderDocuments();
   } catch (err) { toast(err.message, true); }
 }
 
@@ -1320,10 +1335,54 @@ async function deleteTask(id) {
 
 /* ---------------- Documents ---------------- */
 async function renderDocuments() {
-  const { documents } = await api('/documents');
+  const [{ documents }, sharedDrive, { employees }] = await Promise.all([
+    api('/documents'),
+    api('/documents/shared-drive').catch(() => ({ link: '', label: '' })),
+    api('/employees')
+  ]);
+  CACHE.employees = employees;
+  const shared = [];
+  employees.forEach(emp => {
+    (emp.documents || []).filter(d => d.uploadedBy === 'employee').forEach(d => shared.push({ emp, doc: d }));
+  });
+  shared.sort((a, b) => new Date(b.doc.uploadedDate) - new Date(a.doc.uploadedDate));
+  const pendingCount = shared.filter(s => s.doc.status === 'pending').length;
   document.getElementById('main').innerHTML = `
     <h1>Documents</h1>
     <div class="subtitle">Company document library visible to all employees.</div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header"><h2>Company shared drive</h2></div>
+      <div class="panel-body">
+        <div class="muted" style="margin-bottom:10px;">Set a link to your company's shared folder (SharePoint, Google Drive, OneDrive, etc.) where staff can upload and access shared files. This link is shown to every employee.</div>
+        <form id="sharedDriveForm" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:2; min-width:220px;">
+            <label for="sharedDriveLink">Shared drive link</label>
+            <input id="sharedDriveLink" placeholder="https://yourcompany.sharepoint.com/sites/hr" value="${escapeHtml(sharedDrive.link || '')}">
+          </div>
+          <div style="flex:1; min-width:160px;">
+            <label for="sharedDriveLabel">Display name (optional)</label>
+            <input id="sharedDriveLabel" placeholder="Novanest Shared Drive" value="${escapeHtml(sharedDrive.label || '')}">
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">Save link</button>
+          ${sharedDrive.link ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(sharedDrive.link)}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+        </form>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header"><h2>Shared by employees${pendingCount > 0 ? ` <span class="pill pill-pending">${pendingCount} pending</span>` : ''}</h2></div>
+      <div class="panel-body">
+        ${shared.length === 0 ? emptyState('No documents shared by employees yet') : renderTable(
+          ['Employee', 'Document', 'Shared', 'Status', ''],
+          shared.map(({ emp, doc }) => [
+            escapeHtml(emp.name || ''),
+            `<a href="${doc.dataUrl}" download="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</a>`,
+            fmtDate(doc.uploadedDate),
+            doc.status === 'pending' ? '<span class="pill pill-pending">pending review</span>' : '<span class="pill pill-approved">reviewed</span>',
+            `${doc.status === 'pending' ? `<button class="btn btn-ghost btn-sm" onclick="markEmployeeDocReviewed(${emp.id}, ${doc.id})">Mark reviewed</button> ` : ''}<button class="btn btn-danger btn-sm" onclick="deleteEmployeeDocument(${emp.id}, ${doc.id})">Remove</button>`
+          ])
+        )}
+      </div>
+    </div>
     <div class="panel">
       <div class="panel-header"><h2>All documents</h2><button class="btn btn-primary btn-sm" onclick="document.getElementById('documentForm').reset(); document.getElementById('documentModal').classList.add('show');">+ Add document</button></div>
       <div class="panel-body">
@@ -1338,6 +1397,18 @@ async function renderDocuments() {
       </div>
     </div>
   `;
+  document.getElementById('sharedDriveForm').addEventListener('submit', submitSharedDrive);
+}
+async function submitSharedDrive(e) {
+  e.preventDefault();
+  try {
+    await api('/documents/shared-drive', { method: 'PUT', body: {
+      link: document.getElementById('sharedDriveLink').value,
+      label: document.getElementById('sharedDriveLabel').value
+    }});
+    toast('Shared drive link saved');
+    renderDocuments();
+  } catch (err) { toast(err.message, true); }
 }
 async function submitDocument(e) {
   e.preventDefault();

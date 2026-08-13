@@ -80,7 +80,11 @@ function defaultData() {
     workflows: [],
     timesheets: [],
     passwordResets: [],
-    otpRequests: []
+    otpRequests: [],
+    settings: {
+      sharedDriveLink: '',
+      sharedDriveLabel: ''
+    }
   };
 }
 
@@ -119,6 +123,9 @@ function migrate(data) {
   });
   if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }
   if (typeof data.nextId.employeeDocument !== 'number') { data.nextId.employeeDocument = 1; changed = true; }
+  if (!data.settings || typeof data.settings !== 'object') { data.settings = {}; changed = true; }
+  if (typeof data.settings.sharedDriveLink !== 'string') { data.settings.sharedDriveLink = ''; changed = true; }
+  if (typeof data.settings.sharedDriveLabel !== 'string') { data.settings.sharedDriveLabel = ''; changed = true; }
 
   // Backfill employee codes and salary fields for employees created before this feature existed.
   if (Array.isArray(data.employees)) {
@@ -172,6 +179,10 @@ function migrate(data) {
         if (typeof emp[field] !== 'string') { emp[field] = ''; changed = true; }
       });
       if (!Array.isArray(emp.documents)) { emp.documents = []; changed = true; }
+      emp.documents.forEach((doc) => {
+        if (!doc.uploadedBy) { doc.uploadedBy = 'admin'; changed = true; }
+        if (!doc.status) { doc.status = 'reviewed'; changed = true; }
+      });
     });
   }
 

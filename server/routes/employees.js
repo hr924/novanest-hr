@@ -97,6 +97,41 @@ router.get('/me', requireLogin, (req, res) => {
   res.json({ employee: emp });
 });
 
+// Employee: upload one of their own documents (e.g. onboarding paperwork, ID proof).
+// Lands on their own record, marked pending, so HR/admin can see and review it.
+router.post('/me/documents', requireLogin, (req, res) => {
+  const { name, dataUrl } = req.body;
+  if (!name || !dataUrl) return res.status(400).json({ error: 'name and dataUrl are required' });
+  const db = readDB();
+  const emp = db.employees.find(e => e.id === req.session.user.employeeId);
+  if (!emp) return res.status(404).json({ error: 'No employee profile linked to this account' });
+  if (!Array.isArray(emp.documents)) emp.documents = [];
+  const doc = {
+    id: nextId(db, 'employeeDocument'),
+    name,
+    dataUrl,
+    uploadedDate: new Date().toISOString(),
+    uploadedBy: 'employee',
+    status: 'pending'
+  };
+  emp.documents.push(doc);
+  writeDB(db);
+  res.status(201).json({ document: doc });
+});
+
+// Employee: remove one of their own uploads (only ones they shared themselves, before/after review)
+router.delete('/me/documents/:docId', requireLogin, (req, res) => {
+  const db = readDB();
+  const emp = db.employees.find(e => e.id === req.session.user.employeeId);
+  if (!emp) return res.status(404).json({ error: 'No employee profile linked to this account' });
+  const doc = (emp.documents || []).find(d => d.id === Number(req.params.docId));
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (doc.uploadedBy !== 'employee') return res.status(403).json({ error: 'You can only remove documents you shared yourself' });
+  emp.documents = emp.documents.filter(d => d.id !== Number(req.params.docId));
+  writeDB(db);
+  res.json({ ok: true });
+});
+
 router.get('/:id', requireAdmin, (req, res) => {
   const db = readDB();
   const emp = db.employees.find(e => e.id === Number(req.params.id));
@@ -211,11 +246,25 @@ router.post('/:id/documents', requireAdmin, (req, res) => {
     id: nextId(db, 'employeeDocument'),
     name,
     dataUrl,
-    uploadedDate: new Date().toISOString()
+    uploadedDate: new Date().toISOString(),
+    uploadedBy: 'admin',
+    status: 'reviewed'
   };
   emp.documents.push(doc);
   writeDB(db);
   res.status(201).json({ document: doc });
+});
+
+// Admin: mark an employee-shared document as reviewed
+router.put('/:id/documents/:docId', requireAdmin, (req, res) => {
+  const db = readDB();
+  const emp = db.employees.find(e => e.id === Number(req.params.id));
+  if (!emp) return res.status(404).json({ error: 'Employee not found' });
+  const doc = (emp.documents || []).find(d => d.id === Number(req.params.docId));
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (req.body.status) doc.status = req.body.status;
+  writeDB(db);
+  res.json({ document: doc });
 });
 
 // Admin: remove a document from an employee

@@ -10,6 +10,24 @@ router.get('/', requireLogin, (req, res) => {
   res.json({ documents: db.documents.sort((a, b) => new Date(b.uploadedDate) - new Date(a.uploadedDate)) });
 });
 
+// Logged-in: read the company shared drive link (e.g. SharePoint / Google Drive folder)
+router.get('/shared-drive', requireLogin, (req, res) => {
+  const db = readDB();
+  const settings = db.settings || {};
+  res.json({ link: settings.sharedDriveLink || '', label: settings.sharedDriveLabel || '' });
+});
+
+// Admin: set/update the company shared drive link
+router.put('/shared-drive', requireAdmin, (req, res) => {
+  const { link, label } = req.body;
+  const db = readDB();
+  if (!db.settings) db.settings = {};
+  db.settings.sharedDriveLink = (link || '').trim();
+  db.settings.sharedDriveLabel = (label || '').trim();
+  writeDB(db);
+  res.json({ link: db.settings.sharedDriveLink, label: db.settings.sharedDriveLabel });
+});
+
 // Admin: add a document (title/description/optional link — no file storage in this setup)
 router.post('/', requireAdmin, (req, res) => {
   const { title, category, description, link } = req.body;
