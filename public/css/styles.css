@@ -54,6 +54,7 @@ a { color: var(--ledger); }
   max-width: 1120px;
   margin: 0 auto;
 }
+#backButton:hover { background: var(--tab-bg); }
 .brand {
   font-family: var(--font-display);
   font-weight: 600;

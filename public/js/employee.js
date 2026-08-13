@@ -46,7 +46,15 @@ async function init() {
   await switchView('dashboard');
 }
 
-async function switchView(view) {
+let VIEW = 'dashboard';
+let VIEW_HISTORY = [];
+
+async function switchView(view, opts) {
+  opts = opts || {};
+  if (!opts.isBack && VIEW !== view) {
+    VIEW_HISTORY.push(VIEW);
+  }
+  VIEW = view;
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     dashboard: renderDashboard,
@@ -58,6 +66,18 @@ async function switchView(view) {
     teamApprovals: renderTeamApprovals
   };
   await renderers[view]();
+  updateBackButton();
+}
+
+function goBack() {
+  const prev = VIEW_HISTORY.pop();
+  switchView(prev || 'dashboard', { isBack: true });
+}
+
+function updateBackButton() {
+  const btn = document.getElementById('backButton');
+  if (!btn) return;
+  btn.style.display = (VIEW === 'dashboard' && VIEW_HISTORY.length === 0) ? 'none' : 'inline-flex';
 }
 
 function escapeHtml(str) {

@@ -101,7 +101,13 @@ async function init() {
   await switchView('overview');
 }
 
-async function switchView(view) {
+let VIEW_HISTORY = [];
+
+async function switchView(view, opts) {
+  opts = opts || {};
+  if (!opts.isBack && VIEW !== view) {
+    VIEW_HISTORY.push(VIEW);
+  }
   VIEW = view;
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
@@ -112,6 +118,20 @@ async function switchView(view) {
     backups: renderBackups
   };
   await renderers[view]();
+  updateBackButton();
+}
+
+function goBack() {
+  const prev = VIEW_HISTORY.pop();
+  switchView(prev || 'overview', { isBack: true });
+}
+
+function updateBackButton() {
+  const btn = document.getElementById('backButton');
+  if (!btn) return;
+  // No point showing Back while already on the dashboard with nowhere to
+  // go back to — every other page always gets one.
+  btn.style.display = (VIEW === 'overview' && VIEW_HISTORY.length === 0) ? 'none' : 'inline-flex';
 }
 
 function escapeHtml(str) {
