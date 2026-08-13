@@ -349,7 +349,25 @@ textarea { resize: vertical; min-height: 80px; }
 .sidebar-link .ico.m-violet { background: #7C4FEF; color: #fff; }
 .sidebar-link .ico.m-cyan   { background: #0EA5C7; color: #fff; }
 .sidebar-link .ico.m-rose   { background: #F0506E; color: #fff; }
-.main { padding: 26px 30px; overflow-x: auto; }
+.main { padding: 26px 30px; overflow-x: auto; position: relative; }
+.page-back-btn {
+  position: absolute;
+  top: 26px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ledger-dark);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  z-index: 5;
+}
+.page-back-btn:hover { background: var(--tab-bg); }
 .main h1 {
   font-family: var(--font-display);
   font-size: 24px;

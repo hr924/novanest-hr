@@ -127,11 +127,21 @@ function goBack() {
 }
 
 function updateBackButton() {
-  const btn = document.getElementById('backButton');
-  if (!btn) return;
+  const old = document.getElementById('pageBackButton');
+  if (old) old.remove();
+
   // No point showing Back while already on the dashboard with nowhere to
   // go back to — every other page always gets one.
-  btn.style.display = (VIEW === 'overview' && VIEW_HISTORY.length === 0) ? 'none' : 'inline-flex';
+  if (VIEW === 'overview' && VIEW_HISTORY.length === 0) return;
+
+  const main = document.getElementById('main');
+  if (!main) return;
+  const btn = document.createElement('button');
+  btn.id = 'pageBackButton';
+  btn.className = 'page-back-btn';
+  btn.onclick = goBack;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back`;
+  main.appendChild(btn);
 }
 
 function escapeHtml(str) {

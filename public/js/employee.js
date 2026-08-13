@@ -75,9 +75,19 @@ function goBack() {
 }
 
 function updateBackButton() {
-  const btn = document.getElementById('backButton');
-  if (!btn) return;
-  btn.style.display = (VIEW === 'dashboard' && VIEW_HISTORY.length === 0) ? 'none' : 'inline-flex';
+  const old = document.getElementById('pageBackButton');
+  if (old) old.remove();
+
+  if (VIEW === 'dashboard' && VIEW_HISTORY.length === 0) return;
+
+  const main = document.getElementById('main');
+  if (!main) return;
+  const btn = document.createElement('button');
+  btn.id = 'pageBackButton';
+  btn.className = 'page-back-btn';
+  btn.onclick = goBack;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back`;
+  main.appendChild(btn);
 }
 
 function escapeHtml(str) {
