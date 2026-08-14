@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance kiosk · Novanest HRM</title>
+<link rel="stylesheet" href="css/styles.css?v=1785305713">
+<meta name="theme-color" content="#03A9E7">
+<style>
+  body { background: var(--ledger-dark); }
+  .kiosk-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+  .kiosk-card { background: var(--paper); border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+  .kiosk-video-wrap { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 20px; }
+  video { width: 100%; display: block; transform: scaleX(-1); } /* mirror, feels natural to stand in front of */
+  .kiosk-status { font-size: 17px; font-weight: 500; min-height: 26px; margin-bottom: 6px; }
+  .kiosk-sub { font-size: 13px; color: var(--ink-soft); min-height: 18px; }
+  .kiosk-result { margin-top: 10px; padding: 14px; border-radius: 10px; display: none; }
+  .kiosk-result.show { display: block; }
+  .kiosk-result.ok { background: #E6F7EE; color: #146C43; }
+  .kiosk-result.warn { background: #FFF4E5; color: var(--amber); }
+  .kiosk-result.err { background: #FDECEA; color: var(--rust); }
+  .kiosk-name { font-size: 20px; font-weight: 600; }
+  .kiosk-notice { font-size: 11.5px; color: rgba(255,255,255,0.75); max-width: 480px; text-align: center; margin-top: 18px; line-height: 1.5; }
+  .kiosk-setup-toggle { position: fixed; bottom: 12px; right: 14px; opacity: 0.35; font-size: 11px; color: #fff; cursor: pointer; background: none; border: none; }
+  .kiosk-setup-toggle:hover { opacity: 0.8; }
+  #setupScreen { display: none; }
+  #setupScreen.show { display: block; }
+  #mainScreen.hide { display: none; }
+</style>
+</head>
+<body>
+
+<div class="kiosk-wrap">
+
+  <div class="kiosk-card" id="setupScreen">
+    <h2 style="margin-top:0;">Kiosk setup</h2>
+    <p style="color:var(--ink-soft); font-size:14px;">Enter the kiosk device token from the admin Face ID screen. This only needs to be done once per device.</p>
+    <form id="setupForm">
+      <label for="tokenInput">Kiosk token</label>
+      <input id="tokenInput" autocomplete="off" placeholder="Paste token here" required>
+      <div id="setupError" style="color:var(--rust); font-size:13px; min-height:18px; margin-top:6px;"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center; margin-top:10px;">Connect this device</button>
+    </form>
+  </div>
+
+  <div class="kiosk-card" id="mainScreen">
+    <div class="kiosk-video-wrap">
+      <video id="video" autoplay muted playsinline></video>
+    </div>
+    <div class="kiosk-status" id="statusText">Starting camera…</div>
+    <div class="kiosk-sub" id="subText"></div>
+    <div class="kiosk-result" id="resultBox">
+      <div class="kiosk-name" id="resultName"></div>
+      <div id="resultAction"></div>
+    </div>
+  </div>
+
+  <div class="kiosk-notice">
+    This device uses facial recognition to record attendance. Your face template is compared locally against enrolled employee profiles and is not stored as a photo. Contact HR with questions about this system or to opt out.
+  </div>
+
+</div>
+
+<button class="kiosk-setup-toggle" id="setupToggle" type="button">Reconfigure device</button>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="js/faceEngine.js"></script>
+<script src="js/kiosk.js"></script>
+</body>
+</html>

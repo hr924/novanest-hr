@@ -107,7 +107,7 @@ async function switchView(view) {
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.toggle('active', l.dataset.view === view));
   const renderers = {
     overview: renderOverview, jobs: renderJobs, applications: renderApplications, employees: renderEmployees,
-    leave: renderLeave, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
+    leave: renderLeave, timesheets: renderTimesheetsAdmin, attendance: renderAttendance, faceid: renderFaceId, payslips: renderPayslips, form16: renderForm16, performance: renderPerformance,
     tasks: renderTasks, documents: renderDocuments, assets: renderAssets, cases: renderCases,
     surveys: renderSurveys, knowledgebase: renderKnowledgeBase, workflows: renderWorkflows, reports: renderReports,
     backups: renderBackups
@@ -214,6 +214,8 @@ async function renderOverview() {
       tone: pendingTimesheets ? 'warn' : 'good' },
     { icon: 'attendance', title: 'Attendance', view: 'attendance',
       status: `${presentToday} present today`, tone: 'good' },
+    { icon: 'faceid', title: 'Face ID', view: 'faceid',
+      status: 'Kiosk & enrollment', tone: 'idle' },
     { icon: 'payslips', title: 'Payroll', view: 'payslips',
       status: payslipsThisMonth ? `${payslipsThisMonth} processed` : 'Not run yet',
       tone: payslipsThisMonth ? 'good' : 'warn' },
@@ -1035,6 +1037,68 @@ async function renderAttendance() {
       </div>
     </div>
   `;
+}
+
+/* ---------------- Face ID ---------------- */
+let FACE_ID_EMPLOYEES = [];
+async function renderFaceId() {
+  const { employees, kioskToken } = await api('/face/status');
+  FACE_ID_EMPLOYEES = employees;
+  const kioskUrl = window.location.origin + '/kiosk.html';
+  document.getElementById('main').innerHTML = `
+    <h1>Face ID</h1>
+    <div class="subtitle">Enroll employees for automatic face-recognition check-in/out at the entrance kiosk.</div>
+
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-header"><h2>Kiosk device</h2></div>
+      <div class="panel-body">
+        <p style="font-size:13px; color:var(--ink-soft); margin-top:0;">
+          Open <code>${escapeHtml(kioskUrl)}</code> on the tablet/device at your entrance and paste in this token the first time it's set up.
+          Anyone holding this token can read enrolled face templates and mark attendance — treat it like a password, and regenerate it if a device is lost.
+        </p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <code id="kioskTokenText" style="background:var(--tab-bg); padding:6px 10px; border-radius:6px; font-size:13px;">${escapeHtml(kioskToken)}</code>
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(kioskToken)}'); toast('Token copied')">Copy</button>
+          <button class="btn btn-ghost btn-sm" onclick="regenerateKioskToken()">Regenerate (revokes old devices)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2>Employee enrollment</h2></div>
+      <div class="panel-body">
+        ${employees.length === 0 ? emptyState('No active employees yet') : renderTable(
+          ['Employee', 'Status', 'Samples', 'Last updated', ''],
+          employees.map(e => [
+            escapeHtml(e.employeeName),
+            e.enrolled ? pill('active') : pill('inactive'),
+            e.sampleCount || '—',
+            e.updatedAt ? fmtDate(e.updatedAt) : '—',
+            `<button class="btn btn-ghost btn-sm" onclick="openFaceEnrollModal(${e.employeeId})">${e.enrolled ? 'Re-enroll' : 'Enroll'}</button>` +
+            (e.enrolled ? ` <button class="btn btn-ghost btn-sm" onclick="removeFaceEnrollment(${e.employeeId})">Remove</button>` : '')
+          ])
+        )}
+      </div>
+    </div>
+  `;
+}
+
+async function removeFaceEnrollment(employeeId) {
+  if (!confirm('Remove this person\'s face enrollment? They will need to be re-enrolled to use the kiosk again.')) return;
+  try {
+    await api(`/face/enroll/${employeeId}`, { method: 'DELETE' });
+    toast('Enrollment removed');
+    renderFaceId();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function regenerateKioskToken() {
+  if (!confirm('Regenerate the kiosk token? Any device still using the old token will stop working until you re-enter the new one.')) return;
+  try {
+    await api('/face/kiosk-token/regenerate', { method: 'POST' });
+    toast('Kiosk token regenerated');
+    renderFaceId();
+  } catch (err) { toast(err.message, true); }
 }
 
 /* ---------------- Shared helper: populate employee dropdowns ---------------- */

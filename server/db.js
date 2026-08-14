@@ -13,6 +13,10 @@ function randomPassword() {
   return Math.random().toString(36).slice(-6) + Math.random().toString(36).slice(-6);
 }
 
+function randomToken() {
+  return Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+}
+
 function defaultData() {
   const adminEmail = process.env.ADMIN_EMAIL || 'hr@novanest.com';
   const adminName = process.env.ADMIN_NAME || 'Admin';
@@ -29,6 +33,24 @@ function defaultData() {
     console.log('----------------------------------------------------------------');
   }
   const adminPasswordHash = bcrypt.hashSync(adminPasswordPlain, 8);
+
+  // The kiosk token is what a shared face-recognition kiosk device uses to
+  // authenticate its (unattended, not-logged-in) requests. It is generated
+  // once and persisted in settings — env override lets ops pin it — and can
+  // be regenerated from the admin Face ID screen if a device is lost/retired.
+  let kioskToken = process.env.KIOSK_TOKEN;
+  if (!kioskToken) {
+    kioskToken = randomToken();
+    console.log('----------------------------------------------------------------');
+    console.log('No KIOSK_TOKEN environment variable was set.');
+    console.log('A one-time kiosk device token was generated:');
+    console.log('  ' + kioskToken);
+    console.log('This token is also shown on the admin Face ID screen. Anyone who');
+    console.log('holds it can read enrolled face templates and mark attendance —');
+    console.log('treat it like a credential, not a convenience setting.');
+    console.log('----------------------------------------------------------------');
+  }
+
   return {
     nextId: {
       users: 2, jobs: 3, applications: 1, employees: 1, leave: 1, attendance: 1,
@@ -67,6 +89,7 @@ function defaultData() {
     employees: [],
     leave: [],
     attendance: [],
+    faceProfiles: [],
     payslips: [],
     formSixteens: [],
     performance: [],
@@ -83,7 +106,8 @@ function defaultData() {
     otpRequests: [],
     settings: {
       sharedDriveLink: '',
-      sharedDriveLabel: ''
+      sharedDriveLabel: '',
+      kioskToken
     }
   };
 }
@@ -117,8 +141,9 @@ function migrate(data) {
   ensureArray('timesheets');
   ensureArray('passwordResets');
   ensureArray('otpRequests');
+  ensureArray('faceProfiles');
   if (!data.nextId) data.nextId = {};
-  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets', 'otpRequests'].forEach((key) => {
+  ['payslips', 'formSixteens', 'performance', 'tasks', 'documents', 'assets', 'cases', 'surveys', 'surveyResponses', 'kbArticles', 'workflows', 'timesheets', 'otpRequests', 'faceProfiles'].forEach((key) => {
     if (typeof data.nextId[key] !== 'number') { data.nextId[key] = 1; changed = true; }
   });
   if (typeof data.nextId.employeeCode !== 'number') { data.nextId.employeeCode = 1001; changed = true; }
@@ -126,6 +151,10 @@ function migrate(data) {
   if (!data.settings || typeof data.settings !== 'object') { data.settings = {}; changed = true; }
   if (typeof data.settings.sharedDriveLink !== 'string') { data.settings.sharedDriveLink = ''; changed = true; }
   if (typeof data.settings.sharedDriveLabel !== 'string') { data.settings.sharedDriveLabel = ''; changed = true; }
+  if (typeof data.settings.kioskToken !== 'string' || !data.settings.kioskToken) {
+    data.settings.kioskToken = process.env.KIOSK_TOKEN || randomToken();
+    changed = true;
+  }
 
   // Backfill employee codes and salary fields for employees created before this feature existed.
   if (Array.isArray(data.employees)) {

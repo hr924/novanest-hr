@@ -529,8 +529,33 @@
   </div>
 </div>
 
+<!-- Face enrollment modal -->
+<div class="modal-backdrop" id="faceEnrollModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="faceEnrollTitle">Enroll face</h3><button class="modal-close" onclick="closeFaceEnrollModal()">&times;</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px; color:var(--ink-soft); margin-top:0;">
+        Capture 3 samples with good, even lighting, facing the camera directly. Re-enrolling replaces this person's previous samples.
+      </p>
+      <div style="position:relative; border-radius:10px; overflow:hidden; background:#000; margin-bottom:12px;">
+        <video id="faceEnrollVideo" autoplay muted playsinline style="width:100%; display:block; transform:scaleX(-1);"></video>
+      </div>
+      <div id="faceEnrollStatus" style="font-size:13px; min-height:18px; margin-bottom:10px;">Starting camera…</div>
+      <div style="display:flex; gap:8px; margin-bottom:6px;">
+        <div id="faceEnrollDots" style="display:flex; gap:6px; align-items:center; flex:1;"></div>
+        <button class="btn btn-ghost btn-sm" type="button" id="faceEnrollRetake">Reset</button>
+      </div>
+      <button class="btn btn-primary" type="button" id="faceEnrollCapture" style="width:100%; justify-content:center;">Capture sample</button>
+      <button class="btn btn-primary" type="button" id="faceEnrollSave" style="width:100%; justify-content:center; margin-top:8px; display:none;">Save enrollment</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="js/faceEngine.js?v=1785305713"></script>
 <script src="js/common.js?v=1785305713"></script>
 <script src="js/admin.js?v=1785305713"></script>
+<script src="js/faceEnroll.js?v=1785305713"></script>
 </body>
 </html>

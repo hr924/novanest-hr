@@ -26,7 +26,8 @@ const SIDEBAR_ICONS = {
   knowledgebase: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5z" fill="none"/><path d="M20 19H6.5A2.5 2.5 0 0 0 4 21.5" fill="none"/>',
   workflows: '<path d="M8 6h13M8 12h13M8 18h13" fill="none"/><circle cx="3.5" cy="6" r="1.5"/><circle cx="3.5" cy="12" r="1.5"/><circle cx="3.5" cy="18" r="1.5"/>',
   reports: '<circle cx="12" cy="12" r="9" fill="none"/><path d="M12 3v9l7 4" fill="none"/>',
-  backups: '<ellipse cx="12" cy="5" rx="8" ry="3" fill="none"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" fill="none"/>'
+  backups: '<ellipse cx="12" cy="5" rx="8" ry="3" fill="none"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" fill="none"/>',
+  faceid: '<rect x="3" y="3" width="18" height="18" rx="3" fill="none"/><path d="M7 3v3M17 3v3M7 18v3M17 18v3" fill="none"/><circle cx="9" cy="11" r="0.8"/><circle cx="15" cy="11" r="0.8"/><path d="M9 15c1 1 5 1 6 0" fill="none"/>'
 };
 const SIDEBAR_ICON_DEFAULT = '<circle cx="12" cy="12" r="3"/>';
 
@@ -43,6 +44,7 @@ const SIDEBAR_ICON_TINTS = {
   form16: 'm-teal',
   backups: 'm-teal',
   attendance: 'm-green',
+  faceid: 'm-green',
   performance: 'm-indigo',
   workflows: 'm-indigo',
   jobs: 'm-amber',

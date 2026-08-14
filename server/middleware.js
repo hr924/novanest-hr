@@ -19,4 +19,18 @@ function requireManagerOrAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireLogin, requireAdmin, requireManagerOrAdmin };
+// Shared kiosk devices aren't logged in as anyone — they authenticate with a
+// long-lived device token instead of a session. This gates the endpoints that
+// read face templates or mark attendance without a real user session behind
+// them, so it needs its own check rather than reusing requireLogin.
+function requireKiosk(req, res, next) {
+  const { readDB } = require('./db');
+  const token = req.get('X-Kiosk-Token');
+  const db = readDB();
+  if (!token || token !== db.settings.kioskToken) {
+    return res.status(401).json({ error: 'Invalid or missing kiosk token' });
+  }
+  next();
+}
+
+module.exports = { requireLogin, requireAdmin, requireManagerOrAdmin, requireKiosk };
