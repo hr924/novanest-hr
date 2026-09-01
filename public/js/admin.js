@@ -69,7 +69,6 @@ async function init() {
     recalcSalaryFields();
   });
   document.getElementById('empMonthlyCTC').addEventListener('input', recalcSalaryFields);
-  document.getElementById('empEmployerPF').addEventListener('input', recalcSalaryFields);
   document.getElementById('empEmployeePF').addEventListener('input', recalcSalaryFields);
   document.getElementById('empProfessionalTax').addEventListener('input', recalcSalaryFields);
   document.getElementById('empStatus').addEventListener('change', (e) => {
@@ -599,12 +598,11 @@ function recalcSalaryFields() {
   const basic = monthlyCTC / 2;
   const hra = basic / 2;
   const flexibleAllowance = hra;
-  const employerPF = Number(document.getElementById('empEmployerPF').value) || 0;
   const employeePF = Number(document.getElementById('empEmployeePF').value) || 0;
   const provisionTax = Number(document.getElementById('empProfessionalTax').value) || 0;
 
   const gross = basic + hra + flexibleAllowance;
-  const totalDeductions = employeePF + employerPF + provisionTax;
+  const totalDeductions = employeePF + provisionTax;
   const netPay = gross - totalDeductions;
 
   document.getElementById('empBasicSalary').value = basic.toFixed(2);
@@ -680,7 +678,6 @@ async function openEmpModal(id) {
     document.getElementById('empAnnualCTC').value = emp.annualCTC || 0;
     document.getElementById('empMonthlyCTC').value = emp.monthlyCTC || 0;
     document.getElementById('empHra').value = emp.hra || 0;
-    document.getElementById('empEmployerPF').value = emp.employerPF || 0;
     document.getElementById('empEmployeePF').value = emp.employeePF || 0;
     document.getElementById('empProfessionalTax').value = emp.professionalTax || 0;
     document.getElementById('empBasicSalary').value = emp.basicSalary || 0;
@@ -829,7 +826,6 @@ async function submitEmployee(e) {
     annualCTC: document.getElementById('empAnnualCTC').value,
     monthlyCTC: document.getElementById('empMonthlyCTC').value,
     hra: document.getElementById('empHra').value,
-    employerPF: document.getElementById('empEmployerPF').value,
     employeePF: document.getElementById('empEmployeePF').value,
     professionalTax: document.getElementById('empProfessionalTax').value,
     basicSalary: document.getElementById('empBasicSalary').value,
