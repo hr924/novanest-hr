@@ -255,7 +255,7 @@ function buildPayslipHTML(p, autoPrint) {
     </tr>
     <tr>
       <td>HOUSE RENT ALLOWANCE</td><td class="ps-amount">${payslipMoney(p.hra)}</td>
-      <td>OTHER DEDUCTION LOA / ADJUSTMENTS</td><td class="ps-amount">${payslipMoney(p.otherDeduction)}</td>
+      ${p.otherDeduction ? `<td>OTHER DEDUCTION LOA / ADJUSTMENTS</td><td class="ps-amount">${payslipMoney(p.otherDeduction)}</td>` : '<td></td><td></td>'}
     </tr>
     <tr>
       <td>PERSONAL ALLOWANCE</td><td class="ps-amount">${payslipMoney(p.personalAllowance)}</td>

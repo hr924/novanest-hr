@@ -1167,7 +1167,6 @@ function autoFillPayslipAmounts() {
   document.getElementById('payslipOtherAllowance').value = 0;
   document.getElementById('payslipEmployeePF').value = emp.employeePF || 0;
   document.getElementById('payslipProvisionTax').value = emp.professionalTax || 0;
-  document.getElementById('payslipOtherDeduction').value = 0;
   document.getElementById('payslipLopDays').value = 0;
   recalcPayslipTotals();
 }
@@ -1175,7 +1174,7 @@ function autoFillPayslipAmounts() {
 function recalcPayslipTotals() {
   const val = (id) => Number(document.getElementById(id).value) || 0;
   const gross = val('payslipBasic') + val('payslipHra') + val('payslipFlexAllowance') + val('payslipPersonalAllowance') + val('payslipOtherAllowance');
-  const deductions = val('payslipEmployeePF') + val('payslipProvisionTax') + val('payslipOtherDeduction');
+  const deductions = val('payslipEmployeePF') + val('payslipProvisionTax');
   document.getElementById('payslipGrossEarnings').textContent = fmtMoney(gross);
   document.getElementById('payslipGrossDeductions').textContent = fmtMoney(deductions);
   document.getElementById('payslipNetPay').textContent = fmtMoney(gross - deductions);
@@ -1201,7 +1200,6 @@ async function submitPayslip(e) {
         otherAllowance: document.getElementById('payslipOtherAllowance').value,
         employeePF: document.getElementById('payslipEmployeePF').value,
         provisionTax: document.getElementById('payslipProvisionTax').value,
-        otherDeduction: document.getElementById('payslipOtherDeduction').value,
         lopDays: document.getElementById('payslipLopDays').value,
         note: document.getElementById('payslipNote').value
       }
