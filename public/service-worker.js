@@ -10,10 +10,11 @@
 // online. The cache is only used as a fallback when the network request
 // fails (i.e. genuinely offline).
 
-const CACHE_NAME = 'novanest-hr-shell-v2';
+const CACHE_NAME = 'novanest-hr-shell-v3';
 const SHELL_FILES = [
   '/login.html',
   '/index.html',
+  '/careers.html',
   '/admin.html',
   '/employee.html',
   '/css/styles.css',

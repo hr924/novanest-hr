@@ -21,7 +21,6 @@ const kbRoutes = require('./routes/knowledgebase');
 const workflowRoutes = require('./routes/workflows');
 const timesheetRoutes = require('./routes/timesheets');
 const backupRoutes = require('./routes/backups');
-const faceRoutes = require('./routes/face');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,7 +53,6 @@ app.use('/api/knowledgebase', kbRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/backups', backupRoutes);
-app.use('/api/face', faceRoutes);
 
 // Static frontend
 // dotfiles: 'allow' is required so /.well-known/assetlinks.json (needed for
@@ -64,7 +62,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), { dotfiles: 'allow'
 
 app.listen(PORT, () => {
   console.log(`Novanest HR running at http://localhost:${PORT}`);
-  console.log(`  Careers page:  http://localhost:${PORT}/index.html`);
+  console.log(`  Website:       http://localhost:${PORT}/`);
+  console.log(`  Careers page:  http://localhost:${PORT}/careers.html`);
   console.log(`  Login page:    http://localhost:${PORT}/login.html`);
-  console.log(`  Face kiosk:    http://localhost:${PORT}/kiosk.html`);
 });

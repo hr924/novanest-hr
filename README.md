@@ -5,7 +5,8 @@ pipeline, an employee roster, leave management, and attendance tracking.
 
 ## What's included
 
-- **Careers page** (`/index.html`) — public job listings, no login required to apply.
+- **Website** (`/index.html`) — public Novanest HRM product website.
+- **Careers page** (`/careers.html`) — public job listings, no login required to apply.
 - **Admin dashboard** (`/admin.html`) — for HR/admins: manage job postings,
   review and move applications through a pipeline, manage the employee
   roster, approve/decline leave requests, and view attendance.

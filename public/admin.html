@@ -18,7 +18,7 @@
   <div class="topbar-inner">
     <div class="brand"><img src="img/logo-symbol.png" alt="Novanest" class="brand-logo"> Novanest HRM</div>
     <nav>
-      <a href="index.html">Careers page</a>
+      <a href="careers.html">Careers page</a>
       <a href="#" id="logoutLink">Sign out</a>
     </nav>
   </div>
@@ -97,7 +97,6 @@
         <select id="empPosition" required>
           <option value="">Select designation...</option>
           <option>SAP Consultant</option>
-          <option>SAP Senior Consultant</option>
           <option>SAP MDG Consultant</option>
           <option>SAP MM Consultant</option>
           <option>Software Engineer</option>
@@ -161,14 +160,16 @@
         <label for="empAllowances">Flexible allowance (monthly)</label>
         <input id="empAllowances" type="number" min="0" step="0.01" value="0" readonly>
 
-        <label for="empEmployeePF">Provident fund (monthly)</label>
+        <label for="empEmployerPF">Employer PF (monthly)</label>
+        <input id="empEmployerPF" type="number" min="0" step="0.01" value="0">
+        <label for="empEmployeePF">Employee PF (monthly)</label>
         <input id="empEmployeePF" type="number" min="0" step="0.01" value="0">
         <label for="empProfessionalTax">Provision tax (monthly)</label>
         <input id="empProfessionalTax" type="number" min="0" step="0.01" value="0">
 
         <label for="empDeductions">Net pay (monthly)</label>
         <input id="empDeductions" type="number" min="0" step="0.01" value="0" readonly>
-        <div class="hint-box" style="margin-top:-6px;">Basic salary = half of Monthly CTC. HRA = half of Basic salary. Flexible allowance = same as HRA. Net pay = (Basic + HRA + Flexible allowance) − (Provident fund + Provision tax). These are used to auto-generate payslips each month.</div>
+        <div class="hint-box" style="margin-top:-6px;">Basic salary = half of Monthly CTC. HRA = half of Basic salary. Flexible allowance = same as HRA. Net pay = (Basic + HRA + Flexible allowance) − (Employee PF + Employer PF + Provision tax). These are used to auto-generate payslips each month.</div>
 
         <div style="border-top:1px solid var(--line); margin: 18px 0 12px; padding-top: 14px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);">Personal information</div>
         <label for="empDob">Date of birth</label>
@@ -317,6 +318,8 @@
         <input id="payslipEmployeePF" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
         <label for="payslipProvisionTax">Provision tax</label>
         <input id="payslipProvisionTax" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
+        <label for="payslipOtherDeduction">Other deduction / LOA adjustments</label>
+        <input id="payslipOtherDeduction" type="number" min="0" step="0.01" value="0" oninput="recalcPayslipTotals()">
         <label for="payslipNote">Note (optional, shown at bottom of payslip)</label>
         <input id="payslipNote" placeholder="e.g. Arrears deduction is due to Loss of pay prior to this month.">
 
@@ -526,33 +529,8 @@
   </div>
 </div>
 
-<!-- Face enrollment modal -->
-<div class="modal-backdrop" id="faceEnrollModal">
-  <div class="modal">
-    <div class="modal-head"><h3 id="faceEnrollTitle">Enroll face</h3><button class="modal-close" onclick="closeFaceEnrollModal()">&times;</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px; color:var(--ink-soft); margin-top:0;">
-        Capture 3 samples with good, even lighting, facing the camera directly. Re-enrolling replaces this person's previous samples.
-      </p>
-      <div style="position:relative; border-radius:10px; overflow:hidden; background:#000; margin-bottom:12px;">
-        <video id="faceEnrollVideo" autoplay muted playsinline style="width:100%; display:block; transform:scaleX(-1);"></video>
-      </div>
-      <div id="faceEnrollStatus" style="font-size:13px; min-height:18px; margin-bottom:10px;">Starting camera…</div>
-      <div style="display:flex; gap:8px; margin-bottom:6px;">
-        <div id="faceEnrollDots" style="display:flex; gap:6px; align-items:center; flex:1;"></div>
-        <button class="btn btn-ghost btn-sm" type="button" id="faceEnrollRetake">Reset</button>
-      </div>
-      <button class="btn btn-primary" type="button" id="faceEnrollCapture" style="width:100%; justify-content:center;">Capture sample</button>
-      <button class="btn btn-primary" type="button" id="faceEnrollSave" style="width:100%; justify-content:center; margin-top:8px; display:none;">Save enrollment</button>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script src="js/faceEngine.js?v=1785305713"></script>
 <script src="js/common.js?v=1785305713"></script>
 <script src="js/admin.js?v=1785305713"></script>
-<script src="js/faceEnroll.js?v=1785305713"></script>
 </body>
 </html>
