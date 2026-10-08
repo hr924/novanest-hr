@@ -1,168 +1,153 @@
+// Face ID — enrollment + kiosk check-in/out.
+//
+// Stores face templates (128-number descriptors, not photos) and the
+// check-in log in its own file, face.json, next to db.json (respects
+// DATA_DIR just like the main database), so it never touches db.json.
+
 const express = require('express');
-const { readDB, writeDB, nextId } = require('../db');
-const { requireAdmin, requireKiosk } = require('../middleware');
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
 
-// Matching happens against 128-length face descriptors (the standard output
-// of face-api.js's face recognition model). We never receive or store raw
-// photos or video here — only these numeric vectors — which is deliberate:
-// it's the minimum needed to recognize a face again, and (unlike a photo)
-// isn't itself a picture of someone.
-const DESCRIPTOR_LENGTH = 128;
-const MAX_SAMPLES_PER_EMPLOYEE = 5;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
+const FACE_FILE = path.join(DATA_DIR, 'face.json');
 
-// How long, in ms, after a kiosk marks someone's attendance before that same
-// employee can be marked again. Continuous camera matching would otherwise
-// toggle check-in/check-out every second while someone stands at the kiosk.
-const MARK_COOLDOWN_MS = 60 * 1000;
-const recentMarks = new Map(); // employeeId -> timestamp, in-memory is fine (resets on restart, which just re-opens the cooldown window)
+const MATCH_THRESHOLD = Number(process.env.FACE_MATCH_THRESHOLD || 0.5); // lower = stricter
+const COOLDOWN_MS = 60 * 1000; // ignore repeat scans of the same person within 1 minute
+const MAX_SAMPLES = 5;
 
-function isValidDescriptor(d) {
-  return Array.isArray(d) && d.length === DESCRIPTOR_LENGTH && d.every((n) => typeof n === 'number' && Number.isFinite(n));
+function load() {
+  try {
+    const d = JSON.parse(fs.readFileSync(FACE_FILE, 'utf8'));
+    return { enrollments: d.enrollments || [], logs: d.logs || [] };
+  } catch (e) {
+    return { enrollments: [], logs: [] };
+  }
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+function save(data) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = FACE_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data));
+  fs.renameSync(tmp, FACE_FILE);
 }
 
-// ---------------- Admin: enrollment management ----------------
+// Any signed-in session may use these endpoints (the kiosk device is
+// normally signed in as HR/admin).
+function requireLogin(req, res, next) {
+  const s = req.session;
+  const signedIn = s && Object.keys(s).some((k) => k !== 'cookie' && s[k]);
+  if (!signedIn) return res.status(401).json({ error: 'Please sign in first.' });
+  next();
+}
 
-// List every active employee with their enrollment status, for the admin
-// Face ID screen.
-router.get('/status', requireAdmin, (req, res) => {
-  const db = readDB();
-  const profiles = new Map(db.faceProfiles.map((p) => [p.employeeId, p]));
-  const employees = db.employees
-    .filter((e) => e.status === 'active')
-    .map((e) => {
-      const profile = profiles.get(e.id);
-      return {
-        employeeId: e.id,
-        employeeName: e.name,
-        employeeCode: e.employeeCode,
-        enrolled: !!profile,
-        sampleCount: profile ? profile.descriptors.length : 0,
-        updatedAt: profile ? profile.updatedAt : null
-      };
-    });
-  res.json({ employees, kioskToken: db.settings.kioskToken });
+function isDescriptor(d) {
+  return Array.isArray(d) && d.length === 128 && d.every((n) => typeof n === 'number' && isFinite(n));
+}
+
+function distance(a, b) {
+  let sum = 0;
+  for (let i = 0; i < 128; i++) { const x = a[i] - b[i]; sum += x * x; }
+  return Math.sqrt(sum);
+}
+
+function localDate(ts) {
+  // India time for the "which day" grouping
+  return new Date(ts + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+router.use(requireLogin);
+
+// List enrolled employees (no descriptors sent back)
+router.get('/enrollments', (req, res) => {
+  const { enrollments } = load();
+  res.json(enrollments.map((e) => ({
+    employeeId: e.employeeId, code: e.code, name: e.name,
+    samples: e.descriptors.length, enrolledAt: e.enrolledAt
+  })));
 });
 
-// Enroll (or re-enroll, which fully replaces) an employee's face templates.
-// Body: { employeeId, descriptors: [ [128 numbers], ... up to 5 ] }
-// The descriptors are computed client-side (in the admin's browser, from a
-// live webcam capture) — the server never sees the actual photo.
-router.post('/enroll', requireAdmin, (req, res) => {
-  const { employeeId, descriptors } = req.body;
-  const db = readDB();
-  const employee = db.employees.find((e) => e.id === Number(employeeId));
-  if (!employee) return res.status(404).json({ error: 'Employee not found' });
-  if (!Array.isArray(descriptors) || descriptors.length === 0) {
-    return res.status(400).json({ error: 'At least one face sample is required' });
+// Enroll or re-enroll an employee
+router.post('/enroll', (req, res) => {
+  const { employeeId, code, name, descriptors } = req.body || {};
+  if (!employeeId || !name) return res.status(400).json({ error: 'Employee is required.' });
+  if (!Array.isArray(descriptors) || !descriptors.length || !descriptors.every(isDescriptor)) {
+    return res.status(400).json({ error: 'Face capture data is missing or invalid. Please capture again.' });
   }
-  if (descriptors.length > MAX_SAMPLES_PER_EMPLOYEE) {
-    return res.status(400).json({ error: `No more than ${MAX_SAMPLES_PER_EMPLOYEE} samples per enrollment` });
-  }
-  if (!descriptors.every(isValidDescriptor)) {
-    return res.status(400).json({ error: 'Malformed face descriptor data' });
+  const data = load();
+
+  // Refuse if this face already belongs to someone else
+  for (const e of data.enrollments) {
+    if (String(e.employeeId) === String(employeeId)) continue;
+    for (const d of e.descriptors) {
+      if (descriptors.some((n) => distance(n, d) < 0.4)) {
+        return res.status(409).json({ error: `This face is already enrolled for ${e.name}. Remove that enrollment first if it is wrong.` });
+      }
+    }
   }
 
-  const existingIdx = db.faceProfiles.findIndex((p) => p.employeeId === employee.id);
-  const profile = {
-    id: existingIdx >= 0 ? db.faceProfiles[existingIdx].id : nextId(db, 'faceProfiles'),
-    employeeId: employee.id,
-    employeeName: employee.name,
-    descriptors,
-    updatedAt: new Date().toISOString()
+  const record = {
+    employeeId: String(employeeId), code: code ? String(code) : '', name: String(name),
+    descriptors: descriptors.slice(0, MAX_SAMPLES), enrolledAt: new Date().toISOString()
   };
-  if (existingIdx >= 0) db.faceProfiles[existingIdx] = profile;
-  else db.faceProfiles.push(profile);
-  writeDB(db);
-  res.status(201).json({ profile: { employeeId: profile.employeeId, sampleCount: profile.descriptors.length, updatedAt: profile.updatedAt } });
-});
-
-// Purge an employee's biometric data entirely (they leave the company, opt
-// out, or an admin just wants to re-baseline them from scratch).
-router.delete('/enroll/:employeeId', requireAdmin, (req, res) => {
-  const db = readDB();
-  const before = db.faceProfiles.length;
-  db.faceProfiles = db.faceProfiles.filter((p) => p.employeeId !== Number(req.params.employeeId));
-  if (db.faceProfiles.length === before) return res.status(404).json({ error: 'No enrollment found for this employee' });
-  writeDB(db);
+  const idx = data.enrollments.findIndex((e) => String(e.employeeId) === String(employeeId));
+  if (idx >= 0) data.enrollments[idx] = record; else data.enrollments.push(record);
+  save(data);
   res.json({ ok: true });
 });
 
-// Regenerate the kiosk device token (e.g. a kiosk tablet was lost or
-// decommissioned). Any device using the old token stops working immediately.
-router.post('/kiosk-token/regenerate', requireAdmin, (req, res) => {
-  const db = readDB();
-  db.settings.kioskToken = require('crypto').randomBytes(18).toString('base64url');
-  writeDB(db);
-  res.json({ kioskToken: db.settings.kioskToken });
+router.delete('/enroll/:employeeId', (req, res) => {
+  const data = load();
+  const before = data.enrollments.length;
+  data.enrollments = data.enrollments.filter((e) => String(e.employeeId) !== String(req.params.employeeId));
+  if (data.enrollments.length === before) return res.status(404).json({ error: 'Not enrolled.' });
+  save(data);
+  res.json({ ok: true });
 });
 
-// ---------------- Kiosk device: read templates, mark attendance ----------------
+// Kiosk: identify a face and record check-in / check-out
+router.post('/identify', (req, res) => {
+  const { descriptor } = req.body || {};
+  if (!isDescriptor(descriptor)) return res.status(400).json({ error: 'Invalid face data.' });
+  const data = load();
+  if (!data.enrollments.length) return res.json({ match: null, reason: 'No one is enrolled yet.' });
 
-// The kiosk downloads all enrolled templates once (and periodically after)
-// and does matching locally in the browser — it does not stream faces to the
-// server for matching. This keeps the actual camera feed off the network
-// entirely; only the final match result is ever sent back.
-router.get('/descriptors', requireKiosk, (req, res) => {
-  const db = readDB();
-  const activeIds = new Set(db.employees.filter((e) => e.status === 'active').map((e) => e.id));
-  const profiles = db.faceProfiles
-    .filter((p) => activeIds.has(p.employeeId))
-    .map((p) => ({ employeeId: p.employeeId, employeeName: p.employeeName, descriptors: p.descriptors }));
-  res.json({ profiles });
+  let best = null;
+  for (const e of data.enrollments) {
+    for (const d of e.descriptors) {
+      const dist = distance(descriptor, d);
+      if (!best || dist < best.dist) best = { e, dist };
+    }
+  }
+  if (!best || best.dist > MATCH_THRESHOLD) return res.json({ match: null, reason: 'Face not recognised.' });
+
+  const now = Date.now();
+  const today = localDate(now);
+  const mine = data.logs.filter((l) => String(l.employeeId) === String(best.e.employeeId) && l.date === today);
+  const last = mine[mine.length - 1];
+  const match = { employeeId: best.e.employeeId, code: best.e.code, name: best.e.name, confidence: Math.round((1 - best.dist) * 100) };
+
+  if (last && now - last.ts < COOLDOWN_MS) {
+    return res.json({ match, action: last.type, time: last.time, repeat: true });
+  }
+  const type = last && last.type === 'in' ? 'out' : 'in';
+  const log = { employeeId: best.e.employeeId, code: best.e.code, name: best.e.name, type, ts: now, date: today, time: new Date(now).toISOString() };
+  data.logs.push(log);
+  // keep the file from growing forever: ~13 months of logs
+  const cutoff = now - 400 * 24 * 3600 * 1000;
+  if (data.logs.length && data.logs[0].ts < cutoff) data.logs = data.logs.filter((l) => l.ts >= cutoff);
+  save(data);
+  res.json({ match, action: type, time: log.time });
 });
 
-// The kiosk decided (client-side) which employee matched. This endpoint does
-// NOT trust that decision blindly for anything beyond attendance marking: it
-// re-checks the employee is real and active, and enforces the cooldown so a
-// person standing in frame doesn't get checked in and out repeatedly.
-router.post('/mark', requireKiosk, (req, res) => {
-  // matchDistance is the euclidean distance the kiosk's local match was
-  // decided at — lower is a closer/better match, not higher. Stored purely
-  // as an audit trail (e.g. to spot an employee who's consistently matching
-  // near the threshold and may need to be re-enrolled).
-  const { employeeId, matchDistance } = req.body;
-  const db = readDB();
-  const employee = db.employees.find((e) => e.id === Number(employeeId) && e.status === 'active');
-  if (!employee) return res.status(404).json({ error: 'Employee not recognized or inactive' });
-
-  const last = recentMarks.get(employee.id);
-  if (last && Date.now() - last < MARK_COOLDOWN_MS) {
-    return res.status(429).json({ error: 'Already marked recently', employeeName: employee.name });
-  }
-
-  const today = todayStr();
-  let record = db.attendance.find((r) => r.employeeId === employee.id && r.date === today);
-  let action;
-  if (!record) {
-    record = {
-      id: nextId(db, 'attendance'),
-      employeeId: employee.id,
-      employeeName: employee.name,
-      date: today,
-      checkIn: new Date().toISOString(),
-      checkOut: null,
-      status: 'present',
-      source: 'face-kiosk',
-      matchDistance: typeof matchDistance === 'number' ? matchDistance : null
-    };
-    db.attendance.push(record);
-    action = 'checkin';
-  } else if (!record.checkOut) {
-    record.checkOut = new Date().toISOString();
-    action = 'checkout';
-  } else {
-    return res.status(400).json({ error: 'Already completed attendance for today', employeeName: employee.name });
-  }
-
-  recentMarks.set(employee.id, Date.now());
-  writeDB(db);
-  res.json({ action, employeeName: employee.name, attendance: record });
+// Check-in log, ?from=YYYY-MM-DD&to=YYYY-MM-DD (defaults to today)
+router.get('/logs', (req, res) => {
+  const today = localDate(Date.now());
+  const from = req.query.from || today;
+  const to = req.query.to || from;
+  const { logs } = load();
+  res.json(logs.filter((l) => l.date >= from && l.date <= to));
 });
 
 module.exports = router;

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face ID · Novanest HRM</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#03A9E7">
+<style>
+  :root { --navy:#0B2545; --cyan:#03A9E7; --ink:#14213d; --soft:#64748b; --line:#e2e8f0; --bg:#f5f8fb; --ok:#16a34a; --bad:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--navy); color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  header b { font-size:18px; } header a { color:#cfefff; text-decoration:none; font-size:14px; }
+  .tabs { display:flex; gap:8px; padding:16px 20px 0; flex-wrap:wrap; }
+  .tab { padding:9px 16px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:600; font-size:14px; }
+  .tab.active { background:var(--cyan); color:#fff; border-color:var(--cyan); }
+  .wrap { padding:16px 20px 40px; max-width:1100px; margin:0 auto; }
+  .grid { display:grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap:18px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; }
+  .cam { position:relative; background:#000; border-radius:14px; overflow:hidden; aspect-ratio: 4/3; }
+  .cam video, .cam canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+  .status { margin-top:12px; padding:12px 14px; border-radius:12px; background:#eef6fb; font-weight:600; min-height:46px; }
+  .status.ok { background:#dcfce7; color:#14532d; } .status.bad { background:#fee2e2; color:#7f1d1d; }
+  .big { font-size:22px; }
+  label { display:block; font-size:13px; font-weight:600; margin:12px 0 6px; color:var(--soft); }
+  input, select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:14px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; border-radius:10px; border:0; background:var(--cyan); color:#fff; font-weight:600; cursor:pointer; font-size:14px; }
+  .btn.ghost { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .btn.danger { background:#fff; color:var(--bad); border:1px solid #fecaca; padding:6px 10px; font-size:12px; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--soft); font-weight:600; font-size:12px; text-transform:uppercase; }
+  .scroll { max-height:420px; overflow:auto; }
+  .muted { color:var(--soft); font-size:13px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+  .pill.in { background:#dcfce7; color:#166534; } .pill.out { background:#e0f2fe; color:#075985; }
+  .shots { display:flex; gap:6px; margin-top:10px; }
+  .shot { width:22px; height:22px; border-radius:50%; border:2px solid var(--line); }
+  .shot.done { background:var(--ok); border-color:var(--ok); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <b>Novanest HRM · Face ID</b>
+  <span><a href="admin.html">← Back to admin</a></span>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-tab="kiosk">Kiosk (check in / out)</button>
+  <button class="tab" data-tab="enroll">Enrollment</button>
+  <button class="tab" data-tab="logs">Today's log</button>
+</div>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card">
+      <div class="cam"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
+      <div id="status" class="status">Loading face recognition…</div>
+    </div>
+
+    <div>
+      <!-- Kiosk side panel -->
+      <div class="card" data-panel="kiosk">
+        <h3 style="margin-top:0;">Kiosk mode</h3>
+        <p class="muted">Employees look at the camera. The first scan of the day marks <b>check-in</b>, the next one marks <b>check-out</b>. Repeat scans within 1 minute are ignored.</p>
+        <div id="kioskResult" class="muted">Waiting for a face…</div>
+      </div>
+
+      <!-- Enrollment side panel -->
+      <div class="card hidden" data-panel="enroll">
+        <h3 style="margin-top:0;">Enroll an employee</h3>
+        <label for="empSearch">Search employee (name, email or ID)</label>
+        <input id="empSearch" placeholder="Start typing…" autocomplete="off">
+        <select id="empSelect" size="6" style="margin-top:8px;"></select>
+        <p class="muted" id="empCount"></p>
+        <p class="muted">Capture 3 photos: look straight, then slightly left, then slightly right. Good light, no mask or sunglasses.</p>
+        <div class="shots"><span class="shot"></span><span class="shot"></span><span class="shot"></span></div>
+        <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+          <button class="btn" id="captureBtn" disabled>Capture photo 1 of 3</button>
+          <button class="btn ghost" id="resetBtn">Start over</button>
+        </div>
+        <h4 style="margin:22px 0 8px;">Enrolled (<span id="enrolledCount">0</span>)</h4>
+        <div class="scroll"><table><thead><tr><th>Employee</th><th>Enrolled</th><th></th></tr></thead><tbody id="enrolledBody"></tbody></table></div>
+      </div>
+
+      <!-- Logs side panel -->
+      <div class="card hidden" data-panel="logs">
+        <h3 style="margin-top:0;">Face check-ins</h3>
+        <label for="logDate">Date</label>
+        <input type="date" id="logDate">
+        <div style="margin:10px 0;"><button class="btn ghost" id="csvBtn">Download CSV</button></div>
+        <div class="scroll"><table><thead><tr><th>Time</th><th>Employee</th><th>Type</th></tr></thead><tbody id="logBody"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/dist/face-api.js"></script>
+<script>
+(function () {
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1/model/';
+  const $ = (id) => document.getElementById(id);
+  const video = $('video'), overlay = $('overlay'), statusEl = $('status');
+  let tab = 'kiosk', ready = false, busy = false, pauseUntil = 0;
+  let employees = [], selected = null, samples = [];
+
+  function setStatus(text, kind) { statusEl.className = 'status' + (kind ? ' ' + kind : ''); statusEl.innerHTML = text; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function fmtTime(iso) { return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); }
+  function todayIST() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
+
+  async function api(url, opts) {
+    const res = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts || {}));
+    if (res.status === 401) { location.href = 'login.html'; throw new Error('Not signed in'); }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || ('Request failed (' + res.status + ')'));
+    return body;
+  }
+
+  // ---------- Tabs ----------
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+    tab = b.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
+    document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== tab));
+    if (tab === 'enroll') { loadEmployees(); loadEnrolled(); }
+    if (tab === 'logs') loadLogs();
+    if (ready) setStatus(tab === 'enroll' ? 'Select an employee, then capture 3 photos.' : 'Camera ready.');
+  }));
+
+  // ---------- Startup ----------
+  async function start() {
+    if (!window.isSecureContext) {
+      setStatus('Camera needs HTTPS. Open this page using https:// (Render links already use https).', 'bad'); return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus('This browser cannot use the camera. Please use Chrome or Edge.', 'bad'); return;
+    }
+    if (!window.faceapi) {
+      setStatus('Face recognition library failed to load. Check the internet connection and refresh.', 'bad'); return;
+    }
+    try {
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
+    } catch (e) {
+      setStatus('Could not download face models: ' + esc(e.message) + '. Refresh to try again.', 'bad'); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      video.srcObject = stream;
+      await new Promise((r) => (video.readyState >= 2 ? r() : (video.onloadeddata = r)));
+    } catch (e) {
+      const msg = e.name === 'NotAllowedError'
+        ? 'Camera permission was blocked. Click the camera icon in the address bar, choose Allow, and refresh.'
+        : e.name === 'NotFoundError' ? 'No camera found on this device.'
+        : e.name === 'NotReadableError' ? 'The camera is being used by another app (Zoom/Teams?). Close it and refresh.'
+        : 'Could not open camera: ' + esc(e.message);
+      setStatus(msg, 'bad'); return;
+    }
+    ready = true;
+    $('captureBtn').disabled = !selected;
+    setStatus('Camera ready.');
+    loop();
+  }
+
+  const detectorOptions = () => new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+
+  async function detect() {
+    const r = await faceapi.detectSingleFace(video, detectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    const dims = { width: video.videoWidth, height: video.videoHeight };
+    overlay.width = dims.width; overlay.height = dims.height;
+    const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, dims.width, dims.height);
+    if (r) {
+      const b = r.detection.box; ctx.strokeStyle = '#03A9E7'; ctx.lineWidth = 3; ctx.strokeRect(b.x, b.y, b.width, b.height);
+    }
+    return r;
+  }
+
+  // ---------- Kiosk loop ----------
+  async function loop() {
+    if (tab === 'kiosk' && !busy && Date.now() > pauseUntil) {
+      busy = true;
+      try {
+        const r = await detect();
+        if (r && r.detection.score > 0.6) {
+          const out = await api('/api/face/identify', { method: 'POST', body: JSON.stringify({ descriptor: Array.from(r.descriptor) }) });
+          if (out.match) {
+            const word = out.action === 'in' ? 'Checked IN' : 'Checked OUT';
+            setStatus('<span class="big">' + (out.repeat ? 'Already recorded — ' : '') + word + ' · ' + esc(out.match.name) + '</span><br>' + fmtTime(out.time), 'ok');
+            $('kioskResult').innerHTML = '<b>' + esc(out.match.name) + '</b> ' + (out.match.code ? '(' + esc(out.match.code) + ')' : '') +
+              '<br><span class="pill ' + out.action + '">' + out.action.toUpperCase() + '</span> at ' + fmtTime(out.time);
+            pauseUntil = Date.now() + 4000;
+          } else {
+            setStatus(esc(out.reason || 'Face not recognised.') + ' Please try again or contact HR.', 'bad');
+            pauseUntil = Date.now() + 2000;
+          }
+        } else if (Date.now() > pauseUntil) {
+          setStatus('Look at the camera…');
+        }
+      } catch (e) { setStatus(esc(e.message), 'bad'); pauseUntil = Date.now() + 3000; }
+      busy = false;
+    } else if (tab !== 'kiosk' && !busy) {
+      try { busy = true; await detect(); } catch (e) {} busy = false;
+    }
+    setTimeout(loop, 600);
+  }
+
+  // ---------- Enrollment ----------
+  async function loadEmployees() {
+    if (employees.length) return;
+    try {
+      const data = await api('/api/employees');
+      employees = Array.isArray(data) ? data : (data.employees || data.data || []);
+      renderEmployees();
+    } catch (e) { $('empCount').textContent = 'Could not load employees: ' + e.message; }
+  }
+  function empKey(e) { return e.id != null ? e.id : (e._id != null ? e._id : e.employeeId); }
+  function renderEmployees() {
+    const q = $('empSearch').value.trim().toLowerCase();
+    const list = employees.filter((e) => !q || [e.name, e.email, e.employeeId, e.id].some((v) => v != null && String(v).toLowerCase().includes(q))).slice(0, 100);
+    $('empSelect').innerHTML = list.map((e) => '<option value="' + esc(empKey(e)) + '">' + esc(e.name) + (e.employeeId ? ' · ' + esc(e.employeeId) : '') + (e.email ? ' · ' + esc(e.email) : '') + '</option>').join('');
+    $('empCount').textContent = employees.length + ' employees' + (list.length === 100 ? ' — showing first 100 matches, type to narrow down' : '');
+  }
+  $('empSearch').addEventListener('input', renderEmployees);
+  $('empSelect').addEventListener('change', () => {
+    selected = employees.find((e) => String(empKey(e)) === $('empSelect').value) || null;
+    resetSamples();
+    if (selected) setStatus('Enrolling <b>' + esc(selected.name) + '</b> — capture photo 1 of 3.');
+  });
+
+  function resetSamples() {
+    samples = [];
+    document.querySelectorAll('.shot').forEach((s) => s.classList.remove('done'));
+    $('captureBtn').textContent = 'Capture photo 1 of 3';
+    $('captureBtn').disabled = !(ready && selected);
+  }
+  $('resetBtn').addEventListener('click', resetSamples);
+
+  $('captureBtn').addEventListener('click', async () => {
+    if (!selected) return;
+    $('captureBtn').disabled = true;
+    try {
+      while (busy) await new Promise((r) => setTimeout(r, 50));
+      busy = true;
+      const r = await detect();
+      busy = false;
+      if (!r || r.detection.score < 0.7) { setStatus('No clear face found. Move closer, face the light, and try again.', 'bad'); return; }
+      samples.push(Array.from(r.descriptor));
+      document.querySelectorAll('.shot')[samples.length - 1].classList.add('done');
+      if (samples.length < 3) {
+        $('captureBtn').textContent = 'Capture photo ' + (samples.length + 1) + ' of 3';
+        setStatus('Photo ' + samples.length + ' saved. ' + (samples.length === 1 ? 'Now turn slightly left.' : 'Now turn slightly right.'));
+        return;
+      }
+      setStatus('Saving…');
+      await api('/api/face/enroll', { method: 'POST', body: JSON.stringify({
+        employeeId: empKey(selected), code: selected.employeeId || '', name: selected.name, descriptors: samples
+      }) });
+      setStatus('<b>' + esc(selected.name) + '</b> enrolled successfully. They can now use the kiosk.', 'ok');
+      resetSamples();
+      loadEnrolled();
+    } catch (e) {
+      busy = false;
+      setStatus(esc(e.message), 'bad'); resetSamples();
+    } finally {
+      $('captureBtn').disabled = !(ready && selected);
+    }
+  });
+
+  async function loadEnrolled() {
+    try {
+      const list = await api('/api/face/enrollments');
+      $('enrolledCount').textContent = list.length;
+      $('enrolledBody').innerHTML = list.map((e) => '<tr><td>' + esc(e.name) + (e.code ? '<br><span class="muted">' + esc(e.code) + '</span>' : '') +
+        '</td><td class="muted">' + new Date(e.enrolledAt).toLocaleDateString('en-IN') + '</td><td><button class="btn danger" data-del="' + esc(e.employeeId) + '">Remove</button></td></tr>').join('') ||
+        '<tr><td colspan="3" class="muted">No one enrolled yet.</td></tr>';
+    } catch (e) { $('enrolledBody').innerHTML = '<tr><td colspan="3">' + esc(e.message) + '</td></tr>'; }
+  }
+  $('enrolledBody').addEventListener('click', async (ev) => {
+    const id = ev.target.getAttribute('data-del'); if (!id) return;
+    if (!confirm('Remove this Face ID enrollment?')) return;
+    try { await api('/api/face/enroll/' + encodeURIComponent(id), { method: 'DELETE' }); loadEnrolled(); } catch (e) { alert(e.message); }
+  });
+
+  // ---------- Logs ----------
+  let logs = [];
+  $('logDate').value = todayIST();
+  $('logDate').addEventListener('change', loadLogs);
+  async function loadLogs() {
+    try {
+      const d = $('logDate').value || todayIST();
+      logs = await api('/api/face/logs?from=' + d + '&to=' + d);
+      $('logBody').innerHTML = logs.slice().reverse().map((l) => '<tr><td>' + fmtTime(l.time) + '</td><td>' + esc(l.name) + (l.code ? ' <span class="muted">' + esc(l.code) + '</span>' : '') +
+        '</td><td><span class="pill ' + l.type + '">' + l.type.toUpperCase() + '</span></td></tr>').join('') || '<tr><td colspan="3" class="muted">No check-ins on this date.</td></tr>';
+    } catch (e) { $('logBody').innerHTML = '<tr><td colspan="3">' + esc(e.message) + '</td></tr>'; }
+  }
+  $('csvBtn').addEventListener('click', () => {
+    const rows = [['Date', 'Time', 'Employee ID', 'Name', 'Type']].concat(logs.map((l) => [l.date, fmtTime(l.time), l.code || l.employeeId, l.name, l.type.toUpperCase()]));
+    const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'face-checkins-' + ($('logDate').value || todayIST()) + '.csv';
+    a.click();
+  });
+
+  // open a specific tab with face-id.html#enroll
+  const hash = location.hash.replace('#', '');
+  if (hash) { const t = document.querySelector('.tab[data-tab="' + hash + '"]'); if (t) t.click(); }
+
+  start();
+})();
+</script>
+</body>
+</html>
