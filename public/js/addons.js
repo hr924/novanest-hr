@@ -11,8 +11,8 @@
   // ------------------------------------------------------------------
   const COLUMNS = [
     // [Excel heading, field name, required, other accepted headings]
-    ['Full Name', 'name', true, ['name', 'employee name', 'emp name']],
-    ['Email', 'email', true, ['email id', 'mail', 'email address', 'official email']],
+    ['Full Name', 'name', false, ['name', 'employee name', 'emp name']],
+    ['Email', 'email', false, ['email id', 'mail', 'email address', 'official email']],
     ['Department', 'department', false, ['dept']],
     ['Designation', 'position', false, ['position', 'role', 'job title']],
     ['Phone', 'phone', false, ['mobile', 'mobile number', 'phone number', 'contact number']],
@@ -124,9 +124,9 @@
           <button type="button" id="bulkClose" style="border:0; background:none; font-size:26px; cursor:pointer; line-height:1;">&times;</button>
         </div>
         <ol style="color:#475569; line-height:1.7; padding-left:18px;">
-          <li><a href="#" id="bulkTemplate" style="color:#03A9E7; font-weight:600;">Download the Excel template</a> and fill one employee per row. Only <b>Full Name</b> and <b>Email</b> are required.</li>
+          <li><a href="#" id="bulkTemplate" style="color:#03A9E7; font-weight:600;">Download the Excel template</a> and fill one employee per row. No column is compulsory — fill whatever you have and leave the rest blank.</li>
           <li>Choose the filled file (.xlsx, .xls or .csv). You'll see a preview before anything is saved.</li>
-          <li>Click <b>Import</b>. Employees whose email already exists are skipped, so it is safe to re-upload the same file.</li>
+          <li>Click <b>Import</b>. New people are added. People who already exist (same email, or same name + phone when email is blank) are <b>updated</b> with only the cells you filled; blank cells keep their current value. Re-upload the same sheet any time to fill in missing details.</li>
         </ol>
         <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" style="margin:6px 0 14px;">
         <div id="bulkSummary" style="color:#475569;"></div>
@@ -199,7 +199,7 @@
   const r2 = (n) => Math.round(n * 100) / 100;
 
   function buildEmployee(raw, line) {
-    const emp = {}; const problems = [];
+    const emp = {}; const problems = []; const warnings = [];
     Object.keys(raw).forEach((k) => {
       const field = headingMap[norm(k)];
       if (!field) return;
@@ -207,30 +207,32 @@
       if (typeof v === 'string') v = v.trim();
       emp[field] = v;
     });
-    COLUMNS.forEach(([label, field, required]) => {
-      if (required && !emp[field]) problems.push(label + ' is missing');
-    });
-    if (emp.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emp.email)) problems.push('Email looks invalid');
+    // fields that actually have a value in this row (used when updating existing employees)
+    const filled = new Set(Object.keys(emp).filter((f) => emp[f] !== '' && emp[f] != null));
+    if (!emp.name) warnings.push('Name missing');
+    if (emp.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emp.email)) warnings.push('Email looks invalid');
     if (emp.email) emp.email = String(emp.email).toLowerCase();
 
     DATE_FIELDS.forEach((f) => {
       if (emp[f] == null) return;
       const d = toDate(emp[f]);
-      if (d.startsWith('INVALID:')) { problems.push(f + ' date not understood: ' + d.slice(8)); emp[f] = ''; } else emp[f] = d;
+      if (d.startsWith('INVALID:')) { warnings.push(f + ' date not understood: ' + d.slice(8)); emp[f] = ''; } else emp[f] = d;
     });
     NUMBER_FIELDS.forEach((f) => {
       const n = toNum(emp[f]);
-      if (isNaN(n)) { problems.push(f + ' is not a number'); emp[f] = 0; } else emp[f] = n;
+      if (isNaN(n)) { warnings.push(f + ' is not a number, saved as 0'); emp[f] = 0; } else emp[f] = n;
     });
     ['phone', 'uan', 'aadhaar', 'bankAccount', 'emergencyPhone'].forEach((f) => { if (emp[f] != null) emp[f] = String(emp[f]).replace(/\s/g, ''); });
     ['pan', 'bankIfsc'].forEach((f) => { if (emp[f]) emp[f] = String(emp[f]).toUpperCase(); });
-    if (emp.uan && !/^\d{12}$/.test(emp.uan)) problems.push('UAN should be 12 digits');
-    if (emp.aadhaar && !/^\d{12}$/.test(emp.aadhaar)) problems.push('Aadhaar should be 12 digits');
-    if (emp.pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(emp.pan)) problems.push('PAN format looks wrong');
-    if (emp.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(emp.bankIfsc)) problems.push('IFSC format looks wrong');
+    if (emp.uan && !/^\d{12}$/.test(emp.uan)) warnings.push('UAN should be 12 digits');
+    if (emp.aadhaar && !/^\d{12}$/.test(emp.aadhaar)) warnings.push('Aadhaar should be 12 digits');
+    if (emp.pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(emp.pan)) warnings.push('PAN format looks wrong');
+    if (emp.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(emp.bankIfsc)) warnings.push('IFSC format looks wrong');
 
+    if (filled.has('annualCTC') || filled.has('monthlyCTC')) ['annualCTC', 'monthlyCTC', 'basicSalary', 'hra', 'allowances', 'deductions'].forEach((f) => filled.add(f));
     const st = String(emp.status || 'active').toLowerCase();
     emp.status = st.startsWith('in') ? 'inactive' : 'active';
+    if (emp.email == null) emp.email = '';
     ['phone', 'uan', 'pfNumber', 'location', 'dob', 'gender', 'bloodGroup', 'address', 'emergencyName', 'emergencyRelation',
       'emergencyPhone', 'aadhaar', 'pan', 'passport', 'bankName', 'bankAccount', 'bankIfsc', 'department', 'position', 'joinDate']
       .forEach((f) => { if (emp[f] == null) emp[f] = ''; });
@@ -243,7 +245,7 @@
     emp.allowances = emp.hra;
     emp.deductions = r2(emp.basicSalary + emp.hra + emp.allowances - (emp.employeePF + emp.employerPF + emp.professionalTax));
 
-    return { line, emp, problems };
+    return { line, emp, problems, warnings, filled };
   }
 
   async function fetchExistingEmails() {
@@ -251,8 +253,13 @@
       const res = await fetch('/api/employees', { credentials: 'same-origin' });
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.employees || data.data || []);
-      return new Set(list.map((e) => String(e.email || '').toLowerCase()).filter(Boolean));
-    } catch (e) { return new Set(); }
+      const emails = new Map(), people = new Map();
+      list.forEach((e) => {
+        if (e.email) emails.set(String(e.email).toLowerCase(), e);
+        if (e.name) people.set(norm(e.name) + '|' + norm(e.phone), e);
+      });
+      return { emails, people };
+    } catch (e) { return { emails: new Map(), people: new Map() }; }
   }
 
   async function readFile(file) {
@@ -279,18 +286,27 @@
       raw.forEach((r, i) => {
         if (Object.values(r).every((v) => v === '' || v == null)) return;
         const b = buildEmployee(r, i + 2);
-        if (b.emp.email) {
-          if (existing.has(b.emp.email)) b.skip = 'Email already exists — skipped';
-          else if (seen.has(b.emp.email)) b.skip = 'Duplicate email in this file — skipped';
-          seen.add(b.emp.email);
+        const key = b.emp.email ? 'e:' + b.emp.email : (b.emp.name ? 'p:' + norm(b.emp.name) + '|' + norm(b.emp.phone) : '');
+        const match = b.emp.email ? existing.emails.get(b.emp.email) : (b.emp.name ? existing.people.get(key.slice(2)) : null);
+        if (key && seen.has(key)) {
+          b.skip = 'Same employee appears earlier in this file — skipped';
+        } else if (match) {
+          // Existing employee: only the filled cells are changed, blank cells keep the current value
+          const changes = Array.from(b.filled).filter((f) => String(match[f] == null ? '' : match[f]) !== String(b.emp[f]));
+          if (!changes.length) b.skip = 'Already up to date — no changes';
+          else { b.update = match; b.changes = changes; }
         }
+        if (key) seen.add(key);
         rows.push(b);
       });
 
       const ok = rows.filter((r) => !r.problems.length && !r.skip).length;
+      const upd = rows.filter((r) => !r.problems.length && !r.skip && r.update).length;
       const bad = rows.filter((r) => r.problems.length).length;
+      const warn = rows.filter((r) => !r.problems.length && !r.skip && r.warnings.length).length;
       const skip = rows.filter((r) => r.skip && !r.problems.length).length;
-      sum.innerHTML = `<b>${rows.length}</b> rows found · <b style="color:#16a34a;">${ok} ready</b> · <b style="color:#dc2626;">${bad} with errors</b> · ${skip} skipped (already exist)` +
+      sum.innerHTML = `<b>${rows.length}</b> rows found · <b style="color:#16a34a;">${ok - upd} new</b> · <b style="color:#03A9E7;">${upd} will update existing</b> · ${skip} unchanged/skipped` + (bad ? ` · <b style="color:#dc2626;">${bad} with errors</b>` : '') +
+        (warn ? `<br><span style="color:#b45309;">${warn} rows will import with notes — the flagged fields can be corrected later in Edit employee.</span>` : '') +
         (unknown.length ? `<br><span style="color:#b45309;">Ignored columns: ${esc(unknown.join(', '))}</span>` : '');
 
       const show = rows.slice(0, 50);
@@ -298,12 +314,12 @@
         '<table style="width:100%; border-collapse:collapse; font-size:12.5px;"><thead><tr>' +
         ['Row', 'Name', 'Email', 'Department', 'Designation', 'Joining', 'Monthly CTC', 'Check'].map((h) => `<th style="text-align:left; padding:6px; border-bottom:1px solid #e2e8f0; color:#64748b;">${h}</th>`).join('') +
         '</tr></thead><tbody>' +
-        show.map((r) => `<tr><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${r.line}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.name)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.email)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.department)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.position)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.joinDate)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${r.emp.monthlyCTC ? '₹' + r.emp.monthlyCTC.toLocaleString('en-IN') : ''}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9; color:${r.problems.length ? '#dc2626' : r.skip ? '#b45309' : '#16a34a'};">${r.problems.length ? esc(r.problems.join('; ')) : r.skip ? esc(r.skip) : 'OK'}</td></tr>`).join('') +
+        show.map((r) => `<tr><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${r.line}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.name)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.email)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.department)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.position)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${esc(r.emp.joinDate)}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9;">${r.emp.monthlyCTC ? '₹' + r.emp.monthlyCTC.toLocaleString('en-IN') : ''}</td><td style="padding:6px; border-bottom:1px solid #f1f5f9; color:${r.problems.length ? '#dc2626' : r.skip ? '#64748b' : r.warnings.length ? '#b45309' : '#16a34a'};">${r.problems.length ? esc(r.problems.join('; ')) : r.skip ? esc(r.skip) : (r.update ? 'Update: ' + esc(r.changes.join(', ')) : 'New') + (r.warnings.length ? ' · ' + esc(r.warnings.join('; ')) : '')}</td></tr>`).join('') +
         '</tbody></table>' + (rows.length > 50 ? `<div style="color:#64748b; margin-top:6px;">Showing first 50 of ${rows.length} rows.</div>` : '');
 
       const btn = document.getElementById('bulkStart');
       btn.disabled = ok === 0;
-      btn.textContent = `Import ${ok} employee${ok === 1 ? '' : 's'}`;
+      btn.textContent = `Import ${ok - upd} new + update ${upd}`;
       errors = rows.filter((r) => r.problems.length).map((r) => ({ line: r.line, name: r.emp.name, email: r.emp.email, error: r.problems.join('; ') }));
       if (errors.length) document.getElementById('bulkErrors').style.display = '';
     } catch (e) {
@@ -318,24 +334,35 @@
     const btn = document.getElementById('bulkStart'); btn.disabled = true;
     document.getElementById('bulkProgressWrap').style.display = '';
     const bar = document.getElementById('bulkBar'), txt = document.getElementById('bulkProgressText');
-    let done = 0, saved = 0, idx = 0;
+    let done = 0, saved = 0, updated = 0, idx = 0;
 
     async function worker() {
       while (idx < todo.length) {
         const r = todo[idx++];
         try {
-          const res = await fetch('/api/employees', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(r.emp)
-          });
+          let res;
+          if (r.update) {
+            const id = r.update.id != null ? r.update.id : r.update._id;
+            const body = Object.assign({}, r.update);
+            r.changes.forEach((f) => { body[f] = r.emp[f]; });
+            const opts = { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+            res = await fetch('/api/employees/' + encodeURIComponent(id), Object.assign({ method: 'PUT' }, opts));
+            if (res.status === 404 || res.status === 405) res = await fetch('/api/employees/' + encodeURIComponent(id), Object.assign({ method: 'PATCH' }, opts));
+          } else {
+            res = await fetch('/api/employees', {
+              method: 'POST', credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(r.emp)
+            });
+          }
           if (res.status === 401) throw new Error('Session expired — sign in again and re-upload (saved rows will be skipped).');
           if (!res.ok) {
             const b = await res.json().catch(() => ({}));
             throw new Error(b.error || b.message || ('Server error ' + res.status));
           }
           saved++;
-          r.skip = 'Imported';
+          if (r.update) updated++;
+          r.skip = r.update ? 'Updated' : 'Imported';
         } catch (e) {
           errors.push({ line: r.line, name: r.emp.name, email: r.emp.email, error: e.message });
         }
@@ -346,7 +373,7 @@
     }
     await Promise.all(Array.from({ length: CONCURRENCY }, worker));
     running = false;
-    txt.innerHTML = `<b>Done.</b> ${saved} employees imported` + (done - saved ? `, <span style="color:#dc2626;">${done - saved} failed</span> — download the error report to see why.` : '.');
+    txt.innerHTML = `<b>Done.</b> ${saved - updated} new employees added, ${updated} existing employees updated` + (done - saved ? `, <span style="color:#dc2626;">${done - saved} failed</span> — download the error report to see why.` : '.');
     btn.textContent = 'Import finished';
     if (errors.length) document.getElementById('bulkErrors').style.display = '';
     document.getElementById('bulkReload').style.display = '';
