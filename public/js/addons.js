@@ -128,7 +128,11 @@
           <li>Choose the filled file (.xlsx, .xls or .csv). You'll see a preview before anything is saved.</li>
           <li>Click <b>Import</b>. New people are added. People who already exist (same email, or same name + phone when email is blank) are <b>updated</b> with only the cells you filled; blank cells keep their current value. Re-upload the same sheet any time to fill in missing details.</li>
         </ol>
-        <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" style="margin:6px 0 14px;">
+        <input type="file" id="bulkFile" accept=".xlsx,.xls,.csv" style="margin:6px 0 8px;">
+        <label style="display:flex; gap:8px; align-items:flex-start; margin:0 0 12px; color:#475569; font-weight:400;">
+          <input type="checkbox" id="bulkFillEmail" checked style="width:auto; margin-top:3px;">
+          <span>If Email is blank, save a temporary email (<i>name.row@noemail.novanestcareers.com</i>) so the record is accepted. Replace it later by re-uploading the sheet with the real email.</span>
+        </label>
         <div id="bulkSummary" style="color:#475569;"></div>
         <div id="bulkPreview" style="max-height:320px; overflow:auto; margin-top:10px;"></div>
         <div id="bulkProgressWrap" style="display:none; margin-top:14px;">
@@ -287,7 +291,11 @@
         if (Object.values(r).every((v) => v === '' || v == null)) return;
         const b = buildEmployee(r, i + 2);
         const key = b.emp.email ? 'e:' + b.emp.email : (b.emp.name ? 'p:' + norm(b.emp.name) + '|' + norm(b.emp.phone) : '');
-        const match = b.emp.email ? existing.emails.get(b.emp.email) : (b.emp.name ? existing.people.get(key.slice(2)) : null);
+        let match = b.emp.email ? existing.emails.get(b.emp.email) : (b.emp.name ? existing.people.get(key.slice(2)) : null);
+        if (!match && b.emp.email && b.emp.name) {
+          const p = existing.people.get(norm(b.emp.name) + '|' + norm(b.emp.phone));
+          if (p && /@noemail\.novanestcareers\.com$/i.test(p.email || '')) match = p;
+        }
         if (key && seen.has(key)) {
           b.skip = 'Same employee appears earlier in this file — skipped';
         } else if (match) {
@@ -327,6 +335,128 @@
     }
   }
 
+
+  // ------------------------------------------------------------------
+  // Save through the portal's own "Add employee" form, so the request is
+  // exactly what the Save employee button sends (same fields, format,
+  // headers and validation as a manual add).
+  // ------------------------------------------------------------------
+  const FORM_IDS = {
+    name: 'empName', email: 'empEmail', department: 'empDept', position: 'empPosition', phone: 'empPhone',
+    joinDate: 'empJoinDate', status: 'empStatus', uan: 'empUan', pfNumber: 'empPfNumber', location: 'empLocation',
+    annualCTC: 'empAnnualCTC', monthlyCTC: 'empMonthlyCTC', employerPF: 'empEmployerPF', employeePF: 'empEmployeePF',
+    professionalTax: 'empProfessionalTax', dob: 'empDob', gender: 'empGender', bloodGroup: 'empBloodGroup',
+    address: 'empAddress', emergencyName: 'empEmergencyName', emergencyRelation: 'empEmergencyRelation',
+    emergencyPhone: 'empEmergencyPhone', aadhaar: 'empAadhaar', pan: 'empPan', passport: 'empPassport',
+    bankName: 'empBankName', bankAccount: 'empBankAccount', bankIfsc: 'empBankIfsc'
+  };
+  const OTHER_INPUT = { empDept: 'empDeptOther', empPosition: 'empPositionOther' };
+
+  let pending = null; // { resolve, timer }
+  function finish(result) {
+    if (!pending) return;
+    const p = pending; pending = null; clearTimeout(p.timer); p.resolve(result);
+  }
+  const isEmpSave = (method, url) => /\/api\/employees(\/|\?|$)/.test(String(url)) && /^(POST|PUT|PATCH)$/i.test(method || 'GET');
+
+  // watch fetch
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const method = (init && init.method) || (input && input.method) || 'GET';
+    const watch = pending && isEmpSave(method, url);
+    const prom = realFetch(input, init);
+    if (watch) {
+      prom.then(async (res) => {
+        let body = {};
+        try { body = await res.clone().json(); } catch (e) { try { body = { error: (await res.clone().text()).slice(0, 200) }; } catch (e2) {} }
+        finish({ ok: res.ok, status: res.status, body });
+      }, (err) => finish({ ok: false, status: 0, body: { error: err.message } }));
+    }
+    return prom;
+  };
+  // watch XMLHttpRequest too
+  const xOpen = XMLHttpRequest.prototype.open, xSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return xOpen.apply(this, arguments); };
+  XMLHttpRequest.prototype.send = function () {
+    if (pending && isEmpSave(this.__m, this.__u)) {
+      this.addEventListener('loadend', () => {
+        let body = {}; try { body = JSON.parse(this.responseText); } catch (e) { body = { error: String(this.responseText || '').slice(0, 200) }; }
+        finish({ ok: this.status >= 200 && this.status < 300, status: this.status, body });
+      });
+    }
+    return xSend.apply(this, arguments);
+  };
+
+  function setField(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    value = value == null ? '' : String(value);
+    if (el.tagName === 'SELECT') {
+      const opts = Array.from(el.options);
+      const hit = opts.find((o) => norm(o.value) === norm(value)) || opts.find((o) => norm(o.text) === norm(value));
+      if (hit) el.value = hit.value;
+      else if (value && OTHER_INPUT[id] && opts.some((o) => o.value === '__other__')) {
+        el.value = '__other__';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        const other = document.getElementById(OTHER_INPUT[id]);
+        if (other) { other.value = value; other.dispatchEvent(new Event('input', { bubbles: true })); }
+      } else el.value = opts.length ? opts[0].value : '';
+    } else {
+      el.value = value;
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function saveViaForm(values, existingId) {
+    const form = document.getElementById('empForm');
+    form.reset();
+    const hid = document.getElementById('empId'); if (hid) hid.value = existingId == null ? '' : existingId;
+    Object.keys(OTHER_INPUT).forEach((k) => { const o = document.getElementById(OTHER_INPUT[k]); if (o) o.value = ''; });
+    Object.keys(FORM_IDS).forEach((f) => {
+      if (['annualCTC', 'monthlyCTC'].includes(f)) return;
+      setField(FORM_IDS[f], values[f]);
+    });
+    // CTC last so the form's own auto-calculation (Basic, HRA, allowance, net pay) runs
+    if (values.annualCTC) setField('empAnnualCTC', values.annualCTC);
+    setField('empMonthlyCTC', values.monthlyCTC || 0);
+    ['empBasicSalary', 'empHra', 'empAllowances', 'empDeductions'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      const v = [values.basicSalary, values.hra, values.allowances, values.deductions][i];
+      if (el && (!Number(el.value) && v)) el.value = v;
+    });
+    const login = document.getElementById('empCreateLogin');
+    if (login && login.checked) { login.checked = false; login.dispatchEvent(new Event('change', { bubbles: true })); }
+
+    return new Promise((resolve) => {
+      pending = { resolve, timer: setTimeout(() => finish({ ok: false, status: 0, body: { error: lastMessage || 'The form did not save this row (a required field may be empty).' } }), 8000) };
+      lastMessage = '';
+      // a plain submit event runs the portal's save code without the browser's "required" popups
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+  }
+
+  // capture messages the portal shows (alert / toast) while importing
+  let lastMessage = '';
+  function hookMessages() {
+    const saved = {};
+    saved.alert = window.alert;
+    window.alert = (m) => { lastMessage = String(m); if (pending && !/saved|added|updated|success/i.test(lastMessage)) finish({ ok: false, status: 0, body: { error: lastMessage } }); };
+    ['showToast', 'toast', 'notify', 'showMessage'].forEach((n) => {
+      if (typeof window[n] === 'function') {
+        saved[n] = window[n];
+        window[n] = function (m) { lastMessage = String(m); return saved[n].apply(this, arguments); };
+      }
+    });
+    return () => Object.keys(saved).forEach((n) => { window[n] = saved[n]; });
+  }
+
+  function placeholderEmail(r) {
+    const slug = norm(r.emp.name || 'employee').slice(0, 30) || 'employee';
+    return slug + '.' + r.line + Math.random().toString(36).slice(2, 6) + '@noemail.novanestcareers.com';
+  }
+
   async function runImport() {
     const todo = rows.filter((r) => !r.problems.length && !r.skip);
     if (!todo.length || running) return;
@@ -341,7 +471,18 @@
         const r = todo[idx++];
         try {
           let res;
-          if (r.update) {
+          const useForm = !!document.getElementById('empForm');
+          const fillEmail = document.getElementById('bulkFillEmail');
+          if (!r.update && !r.emp.email && fillEmail && fillEmail.checked) { r.emp.email = placeholderEmail(r); }
+          if (useForm) {
+            const values = r.update ? Object.assign({}, r.update) : Object.assign({}, r.emp);
+            if (r.update) r.changes.forEach((f) => { values[f] = r.emp[f]; });
+            const out = await saveViaForm(values, r.update ? (r.update.id != null ? r.update.id : r.update._id) : null);
+            if (out.status === 401) throw new Error('Session expired — sign in again and re-upload (saved rows will be skipped).');
+            if (!out.ok) throw new Error(out.body.error || out.body.message || ('Server error ' + out.status));
+            res = { ok: true, status: 200 };
+            await new Promise((ok) => setTimeout(ok, 300)); // let the portal finish its after-save work
+          } else if (r.update) {
             const id = r.update.id != null ? r.update.id : r.update._id;
             const body = Object.assign({}, r.update);
             r.changes.forEach((f) => { body[f] = r.emp[f]; });
@@ -355,9 +496,9 @@
               body: JSON.stringify(r.emp)
             });
           }
-          if (res.status === 401) throw new Error('Session expired — sign in again and re-upload (saved rows will be skipped).');
+          if (res.status === 401 && !useForm) throw new Error('Session expired — sign in again and re-upload (saved rows will be skipped).');
           if (!res.ok) {
-            const b = await res.json().catch(() => ({}));
+            const b = res.json ? await res.json().catch(() => ({})) : {};
             throw new Error(b.error || b.message || ('Server error ' + res.status));
           }
           saved++;
@@ -371,7 +512,9 @@
         txt.textContent = `${done} / ${todo.length} processed · ${saved} saved · ${done - saved} failed`;
       }
     }
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    const unhook = hookMessages();
+    const n = document.getElementById('empForm') ? 1 : CONCURRENCY;
+    try { await Promise.all(Array.from({ length: n }, worker)); } finally { unhook(); }
     running = false;
     txt.innerHTML = `<b>Done.</b> ${saved - updated} new employees added, ${updated} existing employees updated` + (done - saved ? `, <span style="color:#dc2626;">${done - saved} failed</span> — download the error report to see why.` : '.');
     btn.textContent = 'Import finished';
